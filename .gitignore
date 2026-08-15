@@ -1,0 +1,21 @@
+# Python virtual environment
+tools/.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PDF outputs (generated, not tracked)
+# benchmarks/scenario-a-agribusiness/skill-04-output.pdf
+
+# Environment files
+.env
