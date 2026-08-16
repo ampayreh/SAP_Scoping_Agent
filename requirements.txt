@@ -1,0 +1,3 @@
+# Orchestrator + eval harness dependencies
+anthropic>=0.40.0
+httpx>=0.27.0
