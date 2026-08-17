@@ -67,8 +67,10 @@ SKILLS = [
 # ── Scope Item Lookup Tool ─────────────────────────────────
 
 # A curated subset of SAP S/4HANA scope items relevant to common
-# mid-market implementations. In production, this would query the
-# SAP Best Practice Explorer API via an MCP server (see Skill 05).
+# mid-market implementations. The same catalogue is exposed as an
+# MCP server in mcp_server.py (stdio transport, MCP SDK v2.0).
+# In production, both this tool and the MCP server would front
+# SAP's Best Practice Explorer API.
 
 SCOPE_ITEMS = {
     "1YB": {"name": "General Ledger Accounting", "module": "FI", "area": "Finance", "edition": "Cloud/OP"},

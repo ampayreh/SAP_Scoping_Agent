@@ -39,12 +39,13 @@ This skills pack is **complementary** to SAP's toolchain — its outputs feed in
 │  └──────────────────────────────────────────────────────┘   │
 │                              │                               │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │     05 SAP Best Practices Fetcher (MCP Tool)          │   │
+│  │     05 SAP Best Practices Fetcher (MCP Server)        │   │
+│  │     mcp_server.py — stdio transport, 20 scope items  │   │
 │  │     Grounds all skills in SAP official guidance       │   │
 │  └──────────────────────────────────────────────────────┘   │
 │                                                              │
 │  ─ ─ ─ ─ ─ ─ ─ ─ Future Integration ─ ─ ─ ─ ─ ─ ─ ─ ─   │
-│  SAP Cloud ALM │ SAP Signavio │ SAP LeanIX │ A2A / MCP     │
+│  SAP Cloud ALM │ SAP Signavio │ SAP LeanIX │ A2A           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,6 +81,28 @@ python orchestrator.py --resume state/run-20260816T120000.json
 
 # Run the evaluation harness (3 runs per scenario for variance)
 python eval.py --runs 3
+
+# Test the MCP server locally (no MCP client needed)
+python mcp_server.py --test "finance"
+python mcp_server.py --test "MM"
+
+# Run the MCP server over stdio (for Claude Desktop or MCP clients)
+python mcp_server.py
+```
+
+### Claude Desktop Configuration
+
+To use the scope-item lookup from Claude Desktop, add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "sap-scope-items": {
+      "command": "python",
+      "args": ["/path/to/ScopingAgent/mcp_server.py"]
+    }
+  }
+}
 ```
 
 ## Project Structure
@@ -88,7 +111,8 @@ python eval.py --runs 3
 ScopingAgent/
 ├── orchestrator.py                # Pipeline orchestrator (Claude API + tool use)
 ├── eval.py                        # Evaluation harness (pipeline vs baseline, LLM judge)
-├── requirements.txt               # Python dependencies (anthropic, httpx)
+├── mcp_server.py                  # MCP server for scope-item lookup (stdio transport)
+├── requirements.txt               # Python dependencies (anthropic, httpx, mcp)
 ├── DECISIONS.md                   # Documented architectural decisions
 ├── skills/
 │   ├── 01-client-discovery-intake.md
@@ -140,12 +164,12 @@ Each skill can also be used independently for targeted analysis.
 ## What This Does Not Do
 
 - **Not a production deployment.** The orchestrator runs locally against the Claude API. It is not a hosted service, does not handle concurrent users, and has no authentication layer.
-- **Not connected to SAP APIs.** The scope-item lookup tool uses a curated local dataset. In production, it would connect to SAP's Best Practice Explorer, Signavio, or LeanIX via MCP (see Skill 05 for the specification). The architecture is designed so that swap requires changes to one function, not the pipeline.
+- **Not connected to live SAP APIs.** `mcp_server.py` implements a real MCP server (stdio transport, MCP SDK v2.0) exposing a curated 20-item scope-item catalogue. In production, the same MCP interface would front SAP's Best Practice Explorer, Signavio, or LeanIX — the pipeline consumer sees the same `lookup_scope_items` / `list_all_scope_items` tools regardless of the backing data source.
 - **Not a substitute for a consultant.** The outputs are starting points that compress 2-4 weeks of discovery into hours. A qualified SAP consultant must review all recommendations before presenting to a client.
 
 ## Author
 
-**Graeme Tobias Ampeire** — MSIS Candidate, UW Foster School of Business (2026)
+**Graeme Tobias Ampeire** — Applied AI Architect
 SAP-certified Enterprise Architect | 12+ years digital transformation across Africa, Europe, and the US
 
 ## Course
