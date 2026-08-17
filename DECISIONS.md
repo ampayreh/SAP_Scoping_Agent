@@ -132,3 +132,37 @@ deployment, a few times per eval run in development). The state is small
 The tradeoff: no concurrent-write safety. This is acceptable because the
 pipeline is single-threaded by design — each step depends on the prior
 step's output.
+
+---
+
+## 6. MCP server: thin wrapper over the same catalogue
+
+**Chosen:** `mcp_server.py` exposes exactly two tools (`lookup_scope_items`,
+`list_all_scope_items`) over stdio transport using the MCP Python SDK v2.0.
+The scope-item catalogue is a literal copy of the one in `orchestrator.py`.
+
+**Rejected:**
+
+1. **MCP as the only access path** — making the orchestrator connect as an
+   MCP client for every scope-item lookup would add a subprocess dependency
+   and startup latency to every eval run, for no improvement in lookup quality.
+
+2. **Embedding the catalogue in a vector store** — 20 items is a structured
+   lookup problem, not a semantic search problem. Trigram matching (`query in
+   field.lower()`) is exact, deterministic, and has zero infrastructure cost.
+
+**Why a real MCP server matters despite the small catalogue:**
+
+- The server implements the full MCP protocol (initialize handshake, tools/list,
+  tools/call) — any MCP client (Claude Desktop, another agent, a test harness)
+  can connect with zero code changes.
+- It proves the MCP integration path documented in Skill 05's specification
+  actually works end-to-end. The spec said "this is how it would work"; the
+  server shows it does work.
+- The `--test` mode lets someone verify the catalogue without installing an MCP
+  client or the full SDK.
+
+**Upgrade path:** Replacing the hardcoded `SCOPE_ITEMS` dict with an API call
+to SAP's Best Practice Explorer requires changing `search_scope_items()` only.
+The MCP server's tool interface and the orchestrator's tool-use interface both
+stay unchanged.
