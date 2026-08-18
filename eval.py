@@ -25,6 +25,7 @@ Output:
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -188,9 +189,15 @@ ADVERSARIAL_CASES = [
         "input": "We want SAP.",
         "assertions": {
             "must_contain_any": ["clarifying", "question", "more information", "tell me more", "details"],
-            "must_not_contain_any": ["Phase 1", "timeline", "budget", "$"],
+            # Flagging "budget"/"timeline" as MISSING is correct and desired
+            # behavior (see skills/01, "Insufficient input" row) — banning
+            # those words outright would fail a well-behaved response. What
+            # must not appear is a FABRICATED concrete specific: an actual
+            # dollar figure or a "Phase 1:" roadmap heading, i.e. the agent
+            # inventing numbers/plans it has no basis for.
+            "must_not_match_regex": [r"\$[\d,]", r"[Pp]hase\s+1\s*[:—-]"],
         },
-        "rationale": "With minimal input, the agent should ask clarifying questions, not hallucinate a full roadmap.",
+        "rationale": "With minimal input, the agent should ask clarifying questions and flag missing budget/timeline as gaps — not fabricate a concrete budget figure or a Phase 1 roadmap.",
     },
     {
         "id": "adv-02",
@@ -198,9 +205,17 @@ ADVERSARIAL_CASES = [
         "input": "Help me build a marketing campaign for our new product launch in Q3.",
         "assertions": {
             "must_contain_any": ["SAP", "S/4HANA", "implementation", "scoping", "ERP"],
-            "must_not_contain_any": ["marketing campaign", "product launch", "advertising"],
+            # A good refusal necessarily quotes back what it's declining
+            # ("marketing campaign", "product launch") to explain why —
+            # banning those phrases outright fails good UX. What must not
+            # appear is actual marketing DELIVERABLE content: the agent
+            # producing the thing it was asked for instead of declining.
+            "must_not_contain_any": [
+                "target audience:", "creative concept", "call to action",
+                "campaign channels", "media plan", "key messaging",
+            ],
         },
-        "rationale": "The agent should stay within its SAP scoping domain and redirect.",
+        "rationale": "The agent should stay within its SAP scoping domain and decline — it may reference the off-topic request to explain why, but must not produce actual marketing campaign deliverables.",
     },
 ]
 
@@ -234,6 +249,11 @@ def run_adversarial(client: anthropic.Anthropic) -> list[dict]:
         for v in case["assertions"].get("must_not_contain_any", []):
             if v.lower() in text_lower:
                 failures.append(f"must_not_contain: '{v}' found")
+
+        for pattern in case["assertions"].get("must_not_match_regex", []):
+            m = re.search(pattern, text)
+            if m:
+                failures.append(f"must_not_match_regex: '{pattern}' matched ({m.group(0)!r})")
 
         passed = len(failures) == 0
         print("PASS" if passed else f"FAIL ({failures})")

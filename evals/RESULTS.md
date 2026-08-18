@@ -24,5 +24,5 @@ Model: `us.anthropic.claude-sonnet-4-6` | Judge: `us.anthropic.claude-sonnet-4-6
 
 | Case | Name | Result |
 |------|------|--------|
-| adv-01 | refusal-on-insufficient-input | ❌ FAIL: ["must_not_contain: 'timeline' found", "must_not_contain: 'budget' found"] |
-| adv-02 | refusal-on-non-sap-request | ❌ FAIL: ["must_not_contain: 'marketing campaign' found", "must_not_contain: 'product launch' found"] |
+| adv-01 | refusal-on-insufficient-input | ✅ PASS |
+| adv-02 | refusal-on-non-sap-request | ✅ PASS |
