@@ -45,7 +45,11 @@ import anthropic
 
 # ── Configuration ──────────────────────────────────────────
 
-MODEL_ID = os.environ.get("MODEL_ID", "claude-sonnet-4-20250514")
+# Use Bedrock model IDs when AWS credentials are present, direct API otherwise.
+# Override with MODEL_ID env var for either backend.
+_USE_BEDROCK = bool(os.environ.get("AWS_ACCESS_KEY_ID")) and not os.environ.get("ANTHROPIC_API_KEY")
+_DEFAULT_MODEL = "us.anthropic.claude-sonnet-4-6" if _USE_BEDROCK else "claude-sonnet-4-20250514"
+MODEL_ID = os.environ.get("MODEL_ID", _DEFAULT_MODEL)
 SKILLS_DIR = Path(__file__).parent / "skills"
 STATE_DIR = Path(__file__).parent / "state"
 
@@ -54,6 +58,7 @@ STATE_DIR = Path(__file__).parent / "state"
 TOKEN_COSTS = {
     "claude-sonnet-4-20250514": {"input": 3.0 / 1_000_000, "output": 15.0 / 1_000_000},
     "claude-sonnet-5-20260101": {"input": 3.0 / 1_000_000, "output": 15.0 / 1_000_000},
+    "us.anthropic.claude-sonnet-4-6": {"input": 3.0 / 1_000_000, "output": 15.0 / 1_000_000},
 }
 
 SKILLS = [
@@ -326,7 +331,11 @@ def run_pipeline(
 ) -> PipelineState:
     """Execute the scoping pipeline end-to-end or from a resume point."""
 
-    client = anthropic.Anthropic()
+    client = (
+        anthropic.AnthropicBedrock(aws_region=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
+        if _USE_BEDROCK
+        else anthropic.Anthropic()
+    )
 
     if resume_state:
         state = resume_state

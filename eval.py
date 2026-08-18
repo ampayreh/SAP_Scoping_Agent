@@ -37,8 +37,11 @@ EVALS_DIR = Path(__file__).parent / "evals"
 RESULTS_JSON = EVALS_DIR / "results.json"
 RESULTS_MD = EVALS_DIR / "RESULTS.md"
 
-MODEL_ID = os.environ.get("MODEL_ID", "claude-sonnet-4-20250514")
-JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "claude-sonnet-4-20250514")
+# Use Bedrock when AWS credentials are present and no direct API key is set.
+_USE_BEDROCK = bool(os.environ.get("AWS_ACCESS_KEY_ID")) and not os.environ.get("ANTHROPIC_API_KEY")
+_DEFAULT_MODEL = "us.anthropic.claude-sonnet-4-6" if _USE_BEDROCK else "claude-sonnet-4-20250514"
+MODEL_ID = os.environ.get("MODEL_ID", _DEFAULT_MODEL)
+JUDGE_MODEL = os.environ.get("JUDGE_MODEL", _DEFAULT_MODEL)
 
 
 # ── Scenario Discovery ─────────────────────────────────────
@@ -153,7 +156,7 @@ Respond with ONLY a JSON object:
 }"""
 
 
-def judge_output(client: anthropic.Anthropic, scenario_id: str, method: str, output_text: str) -> dict:
+def judge_output(client, scenario_id: str, method: str, output_text: str) -> dict:
     """Grade an output using the LLM judge."""
     try:
         response = client.messages.create(
@@ -166,6 +169,11 @@ def judge_output(client: anthropic.Anthropic, scenario_id: str, method: str, out
             }],
         )
         text = response.content[0].text.strip()
+        # Strip markdown code fences if the model wraps JSON in ```json ... ```
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3].strip()
         return json.loads(text)
     except Exception as e:
         return {"error": str(e)}
@@ -307,11 +315,15 @@ def main():
     parser.add_argument("--skip-adversarial", action="store_true", help="Skip adversarial cases")
     args = parser.parse_args()
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("Error: ANTHROPIC_API_KEY must be set.", file=sys.stderr)
+    if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("AWS_ACCESS_KEY_ID"):
+        print("Error: ANTHROPIC_API_KEY or AWS credentials must be set.", file=sys.stderr)
         sys.exit(1)
 
-    client = anthropic.Anthropic()
+    client = (
+        anthropic.AnthropicBedrock(aws_region=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
+        if _USE_BEDROCK
+        else anthropic.Anthropic()
+    )
     scenarios = discover_scenarios()
 
     if args.scenario:
