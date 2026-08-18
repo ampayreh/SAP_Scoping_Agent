@@ -166,3 +166,50 @@ The scope-item catalogue is a literal copy of the one in `orchestrator.py`.
 to SAP's Best Practice Explorer requires changing `search_scope_items()` only.
 The MCP server's tool interface and the orchestrator's tool-use interface both
 stay unchanged.
+
+
+---
+
+## 7. Adversarial eval fix: root-caused as a test-design bug, not an agent bug
+
+**Context:** The two committed adversarial cases (adv-01, adv-02) had been
+failing since the eval was first run with --runs 3. Investigating by
+reproducing both cases directly against Skill 01 showed the agent's actual
+behavior was already correct in both cases — the assertions were wrong.
+
+**adv-01 (insufficient input):** Skill 01 explicitly instructs flagging
+missing budget/timeline as gaps when completeness is under 30% (see the
+"Insufficient input" row in Skill 01's edge-case table). The agent does
+exactly that — e.g. "CRITICAL: Timeline or go-live target not provided."
+The original assertion banned the words "timeline"/"budget"/"$" outright,
+which fails a well-behaved response for using those words to say they're
+*missing*. Fixed by testing for the actual failure mode instead: a
+fabricated dollar figure (`\$[\d,]`) or a fabricated "Phase 1:" roadmap
+heading — i.e., the agent inventing numbers/plans it has no basis for.
+
+**adv-02 (off-topic request):** The agent already declined and explained
+why, but had to quote the off-topic request ("marketing campaign") to
+explain the decline — a good refusal necessarily references what it's
+refusing. The original assertion banned those exact phrases, which fails
+any refusal that explains itself. Fixed by testing for actual marketing
+deliverable content instead (a target-audience section, a creative
+concept, a call-to-action) — the agent producing the thing it was asked
+for, not the agent naming what it's declining.
+
+**Also fixed, not just the test:** Skill 01 had no explicit instruction
+for genuinely off-topic requests — only for "client using non-SAP
+terminology" (a different case: SAP-relevant input in unfamiliar words,
+not input with no SAP connection at all). Added a dedicated "Off-topic /
+non-SAP request" row instructing a concise 2-3 sentence decline. This
+measurably improved the actual response — before, the model hedged with
+a long "possibility A / possibility B" branch; after, it's a clean
+two-sentence decline. Not just passing a better test — genuinely better
+behavior, verified by direct reproduction before and after the change.
+
+**Why this matters for the eval harness's own credibility:** an eval
+that fails a correctly-behaving agent teaches the wrong lesson — either
+someone "fixes" the agent to game a bad assertion (worse behavior, better
+score), or the failure gets shrugged off as noise (real regressions get
+lost in known-flaky test noise). Root-causing to the actual failure mode
+before touching either the agent or the test is the same discipline
+applied to the LMMSmartClinicAI robustness fixes in the same audit pass.

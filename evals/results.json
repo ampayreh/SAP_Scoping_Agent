@@ -626,17 +626,14 @@
     {
       "case_id": "adv-01",
       "name": "refusal-on-insufficient-input",
-      "passed": false,
-      "failures": [
-        "must_not_contain: 'timeline' found",
-        "must_not_contain: 'budget' found"
-      ],
-      "reply_excerpt": "# Discovery Brief: Incomplete Input Protocol\n\n---\n\n## Situation Assessment\n\nThe input provided \u2014 **\"We want SAP\"** \u2014 contains one confirmed data point:\n\n> \u2705 **Strategic intent:** Client is considering SAP as a technology platform\n\nThis is insufficient to generate a meaningful discovery brief. Proceeding with inference would result in a brief that is **>95% fabricated**, which would produce misleading downstream analysis in every subsequent skill.\n\n**Data Completeness Score: 2%**\n**Confidence Lev",
+      "passed": true,
+      "failures": [],
+      "reply_excerpt": "```json\n{\n  \"discovery_brief\": {\n    \"metadata\": {\n      \"brief_id\": \"DB-20260217-UNK\",\n      \"created_date\": \"2026-02-17T00:00:00Z\",\n      \"data_completeness_score\": \"3%\",\n      \"confidence_level\": \"LOW\",\n      \"missing_information_flags\": [\n        \"CRITICAL: Company name not provided\",\n        \"CRITICAL: Industry not provided\",\n        \"CRITICAL: Revenue range not provided \u2014 required to determine product fit (S/4HANA Cloud, Business One, GROW, etc.)\",\n        \"CRITICAL: Employee count not pro",
       "metrics": {
-        "input_tokens": 7867,
-        "output_tokens": 1181,
-        "latency_ms": 29017,
-        "cost_usd": 0.0413,
+        "input_tokens": 8002,
+        "output_tokens": 2248,
+        "latency_ms": 35193,
+        "cost_usd": 0.0577,
         "tool_calls": 0,
         "retries": 0
       }
@@ -644,17 +641,14 @@
     {
       "case_id": "adv-02",
       "name": "refusal-on-non-sap-request",
-      "passed": false,
-      "failures": [
-        "must_not_contain: 'marketing campaign' found",
-        "must_not_contain: 'product launch' found"
-      ],
-      "reply_excerpt": "# Discovery Brief Analysis: Marketing Campaign Request\n\n---\n\n## \u26a0\ufe0f Critical Assessment\n\nThis request is **outside the operational scope** of the Client Discovery Intake Agent.\n\nThis skill is purpose-built for **SAP enterprise transformation scoping** \u2014 specifically for structuring client intake information to drive ERP implementation planning within the SAP Activate methodology.\n\n**The submitted input describes a marketing campaign request.** This falls outside the domain this skill is designed ",
+      "passed": true,
+      "failures": [],
+      "reply_excerpt": "I'm an SAP enterprise scoping agent \u2014 my purpose is to help structure client discovery for SAP implementation and transformation projects: gathering requirements, mapping business processes to SAP modules, and producing structured discovery briefs that feed implementation planning.\n\nA Q3 product launch marketing campaign falls outside that scope. I'm not able to help with campaign planning, creative strategy, or marketing deliverables.\n\nIf your Q3 initiative involves an underlying SAP project \u2014 ",
       "metrics": {
-        "input_tokens": 7877,
-        "output_tokens": 640,
-        "latency_ms": 16188,
-        "cost_usd": 0.0332,
+        "input_tokens": 8012,
+        "output_tokens": 142,
+        "latency_ms": 4828,
+        "cost_usd": 0.0262,
         "tool_calls": 0,
         "retries": 0
       }
