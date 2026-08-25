@@ -4,18 +4,30 @@ SAP S/4HANA Scoping Agent — Evaluation Harness
 
 Runs the orchestrator pipeline against benchmark scenarios and compares
 output quality between the agentic pipeline and a single-prompt baseline.
-Grades using both deterministic assertions and LLM-judge scoring.
+Grades using deterministic assertions (adversarial cases) and an LLM judge
+that scores each output twice: once absolute (0-5 per dimension, blinded to
+which method produced it) and once pairwise (blinded head-to-head against
+the other method, per dimension, with a mandatory quoted excerpt).
 
 Usage:
     python eval.py                                # all scenarios, 1 run each
     python eval.py --runs 3                       # 3 runs per scenario (variance)
     python eval.py --scenario scenario-a          # one scenario only
     python eval.py --baseline-only                # single-prompt baseline only
+                                                    # (skips pairwise: needs both)
 
 Environment:
-    ANTHROPIC_API_KEY  — required
-    MODEL_ID           — model for the system under test (default: claude-sonnet-4-20250514)
-    JUDGE_MODEL        — model for the LLM judge (default: claude-sonnet-4-20250514)
+    ANTHROPIC_API_KEY  — required (direct API), or AWS credentials for Bedrock
+    MODEL_ID           — model for the system under test
+                          (default: claude-sonnet-4-20250514, or the Bedrock
+                          Sonnet inference profile when AWS credentials are used)
+    JUDGE_MODEL        — model for the LLM judge. Defaults to a DIFFERENT
+                          model line than MODEL_ID (Opus, not Sonnet) so an
+                          unconfigured run does not self-judge. See DECISIONS.md
+                          #8 for why same-model judging was a real bug here.
+                          Verify the default resolves to a model actually
+                          available in your account/region before relying on
+                          it; override explicitly if it does not.
 
 Output:
     evals/results.json   — machine-readable results
@@ -25,7 +37,9 @@ Output:
 import argparse
 import json
 import os
+import random
 import re
+import statistics
 import sys
 import time
 from pathlib import Path
@@ -40,9 +54,42 @@ RESULTS_MD = EVALS_DIR / "RESULTS.md"
 
 # Use Bedrock when AWS credentials are present and no direct API key is set.
 _USE_BEDROCK = bool(os.environ.get("AWS_ACCESS_KEY_ID")) and not os.environ.get("ANTHROPIC_API_KEY")
+
+# System-under-test default — UNCHANGED from before this fix. This is not
+# the bug; the bug was JUDGE_MODEL defaulting to the same value as this.
 _DEFAULT_MODEL = "us.anthropic.claude-sonnet-4-6" if _USE_BEDROCK else "claude-sonnet-4-20250514"
+
+# Judge default — DELIBERATELY a different model line (Opus, not Sonnet),
+# not just a different date-stamp of the same line. Grading Sonnet-class
+# output with an Opus-class judge is the standard mitigation for
+# same-model self-evaluation bias.
+#
+# The Bedrock ID below follows this repo's existing (pre-fix) convention for
+# _DEFAULT_MODEL ("us.anthropic.claude-sonnet-4-6" — a short cross-region
+# inference-profile-style ID, not the full dated Bedrock model ID format)
+# with "sonnet" swapped for "opus". Bedrock model availability is
+# account/region-specific: if this ID is not enabled in your account, the
+# judge call will fail loudly with a clear "model not found"-class error
+# rather than silently mis-grading — confirm the ID against
+# `aws bedrock list-foundation-models` (or your account's enabled models)
+# before a real run, and override via JUDGE_MODEL if it differs.
+_DEFAULT_JUDGE_MODEL = "us.anthropic.claude-opus-4-6" if _USE_BEDROCK else "claude-opus-4-1-20250805"
+
 MODEL_ID = os.environ.get("MODEL_ID", _DEFAULT_MODEL)
-JUDGE_MODEL = os.environ.get("JUDGE_MODEL", _DEFAULT_MODEL)
+JUDGE_MODEL = os.environ.get("JUDGE_MODEL", _DEFAULT_JUDGE_MODEL)
+
+# Same model on both sides is not blocked outright (an operator may have a
+# real reason — e.g. neither Opus nor a second model is available in their
+# region), but it must never pass silently. See DECISIONS.md #8.
+JUDGE_INDEPENDENT = MODEL_ID != JUDGE_MODEL
+if not JUDGE_INDEPENDENT:
+    print(
+        f"WARNING: MODEL_ID and JUDGE_MODEL both resolve to '{MODEL_ID}'. "
+        "The judge is scoring the same model that produced the output — "
+        "self-evaluation bias is not mitigated for this run. "
+        "Set JUDGE_MODEL to a different model to fix this.",
+        file=sys.stderr,
+    )
 
 
 # ── Scenario Discovery ─────────────────────────────────────
@@ -131,8 +178,15 @@ Produce all four sections in a single response. Be thorough and specific."""
     }
 
 
-# ── LLM Judge ──────────────────────────────────────────────
+# ── LLM Judge: absolute scoring (blinded to method) ────────
 
+# NOTE: no dimension named "consistency" here. Consistency ("do repeated
+# runs produce similar quality") is computed programmatically from cross-run
+# score variance in compute_consistency() below, not estimated by the judge
+# from a single output. See DECISIONS.md #8 for why: a judge grading one
+# output in isolation has no basis to know how *other* runs turned out, so
+# asking it to score "consistency" per-run was never measuring what the
+# rubric said it measures.
 JUDGE_RUBRIC = """You are evaluating SAP S/4HANA implementation scoping deliverables.
 Score each dimension from 0 to 5 using these criteria:
 
@@ -148,6 +202,10 @@ ACTIONABILITY (0-5): Could a real SAP consultant use this as a starting point?
 SAP_GROUNDING (0-5): Are recommendations grounded in SAP methodology (Activate, scope items, Clean Core)?
   5=Specific scope item references, correct Activate phases. 3=General SAP awareness. 1=No SAP specifics.
 
+You are being shown ONE deliverable for ONE scenario. You are not told what
+process produced it, and you must not guess or speculate about that in your
+reasoning — grade only what is in front of you against the criteria above.
+
 Respond with ONLY a JSON object:
 {
   "completeness": {"score": 0-5, "reasoning": "..."},
@@ -156,9 +214,29 @@ Respond with ONLY a JSON object:
   "sap_grounding": {"score": 0-5, "reasoning": "..."}
 }"""
 
+DIMENSIONS = ["completeness", "accuracy", "actionability", "sap_grounding"]
 
-def judge_output(client, scenario_id: str, method: str, output_text: str) -> dict:
-    """Grade an output using the LLM judge."""
+
+def _parse_judge_json(text: str) -> dict:
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    return json.loads(text)
+
+
+def judge_output(client, scenario_id: str, output_text: str) -> dict:
+    """Grade a single output using the LLM judge, absolute 0-5 per dimension.
+
+    Deliberately does NOT take a `method` argument and does NOT send one to
+    the judge. The prior version sent "Method: {method}" in the prompt,
+    which told the judge whether it was grading the pipeline or the
+    baseline before it scored anything — see DECISIONS.md #8. Only the
+    scenario ID is sent for domain context; it does not identify which
+    method produced the output, since both methods run against the same
+    scenario.
+    """
     try:
         response = client.messages.create(
             model=JUDGE_MODEL,
@@ -166,18 +244,151 @@ def judge_output(client, scenario_id: str, method: str, output_text: str) -> dic
             system=JUDGE_RUBRIC,
             messages=[{
                 "role": "user",
-                "content": f"Scenario: {scenario_id}\nMethod: {method}\n\nOUTPUT TO EVALUATE:\n\n{output_text[:30000]}",
+                "content": f"Scenario: {scenario_id}\n\nOUTPUT TO EVALUATE:\n\n{output_text[:30000]}",
             }],
         )
         text = response.content[0].text.strip()
-        # Strip markdown code fences if the model wraps JSON in ```json ... ```
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-            if text.endswith("```"):
-                text = text[:-3].strip()
-        return json.loads(text)
+        return _parse_judge_json(text)
     except Exception as e:
         return {"error": str(e)}
+
+
+# ── LLM Judge: blinded pairwise comparison ─────────────────
+
+PAIRWISE_RUBRIC = """You are comparing two SAP S/4HANA implementation scoping deliverables
+produced for the SAME client scenario, labeled only "Response A" and "Response B".
+You are not told anything about how either was produced, and you must not guess or
+speculate about that — judge only the content in front of you.
+
+For each dimension below, decide which response is better, or declare a tie, and quote
+a short excerpt (a sentence or exact phrase, verbatim from the response) as evidence
+for your judgment. A quote is mandatory for every dimension, including ties — quote the
+passage that shows why they're comparable.
+
+COMPLETENESS: Which covers more of the critical scoping dimensions for this scenario?
+ACCURACY: Which has more correct module recommendations, timelines, and SAP references?
+ACTIONABILITY: Which could a real SAP consultant use as a starting point with less rework?
+SAP_GROUNDING: Which is more specifically grounded in SAP methodology (Activate, scope items, Clean Core)?
+
+Respond with ONLY a JSON object:
+{
+  "completeness": {"winner": "A"|"B"|"tie", "quote": "...", "reasoning": "..."},
+  "accuracy": {"winner": "A"|"B"|"tie", "quote": "...", "reasoning": "..."},
+  "actionability": {"winner": "A"|"B"|"tie", "quote": "...", "reasoning": "..."},
+  "sap_grounding": {"winner": "A"|"B"|"tie", "quote": "...", "reasoning": "..."}
+}"""
+
+
+def judge_pairwise(client, scenario_id: str, text_pipeline: str, text_baseline: str) -> dict:
+    """Blinded head-to-head comparison. Which output is A vs B is randomized
+    per call and never revealed to the judge; the mapping is recorded here
+    so the caller can decode the verdict afterward. This is the mechanism
+    that breaks the ceiling effect a same-scale absolute score can't: a
+    judge grading two outputs side by side against each other has to pick
+    a winner or explicitly say tie, rather than defaulting most things to
+    4 or 5 in isolation.
+    """
+    pipeline_is_a = random.random() < 0.5
+    if pipeline_is_a:
+        a_text, b_text = text_pipeline, text_baseline
+        a_method, b_method = "pipeline", "baseline"
+    else:
+        a_text, b_text = text_baseline, text_pipeline
+        a_method, b_method = "baseline", "pipeline"
+
+    try:
+        response = client.messages.create(
+            model=JUDGE_MODEL,
+            max_tokens=1500,
+            system=PAIRWISE_RUBRIC,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Scenario: {scenario_id}\n\n"
+                    f"## Response A\n\n{a_text[:15000]}\n\n"
+                    f"## Response B\n\n{b_text[:15000]}"
+                ),
+            }],
+        )
+        text = response.content[0].text.strip()
+        raw = _parse_judge_json(text)
+    except Exception as e:
+        return {"error": str(e), "assignment": {"A": a_method, "B": b_method}}
+
+    decoded = {}
+    label_to_method = {"A": a_method, "B": b_method, "tie": "tie"}
+    for dim in DIMENSIONS:
+        entry = raw.get(dim, {})
+        winner_label = entry.get("winner", "")
+        decoded[dim] = {
+            "winner": label_to_method.get(winner_label, winner_label),
+            "quote": entry.get("quote", ""),
+            "reasoning": entry.get("reasoning", ""),
+        }
+
+    return {
+        "assignment": {"A": a_method, "B": b_method},
+        "dimensions": decoded,
+    }
+
+
+# ── Consistency: computed from cross-run variance, not judged ─
+
+def compute_consistency(all_results: list[dict]) -> list[dict]:
+    """For each (scenario, method), take the unweighted mean of the four
+    absolute dimension scores as a single "run quality" scalar per run,
+    then compute the stddev of that scalar across runs. Map stddev to a
+    0-5 band matching benchmark-methodology.md's Consistency descriptions
+    ("0: Wildly different each run" ... "5: Near-identical quality across
+    runs"). This is deterministic and reproducible from the same raw
+    scores every time — it does not depend on the judge's qualitative
+    impression of consistency, which is what benchmark-methodology.md's
+    dimension is actually asking for.
+
+    Caveat that must travel with every number this produces: with only
+    2-3 runs per scenario, a sample stddev is noisy. Treat these as
+    indicative, not statistically rigorous, until --runs is materially
+    higher.
+    """
+    STDDEV_BANDS = [
+        (0.0, 5),
+        (0.25, 4),
+        (0.5, 3),
+        (1.0, 2),
+        (1.5, 1),
+    ]
+
+    def band(stddev: float) -> int:
+        for threshold, score in STDDEV_BANDS:
+            if stddev <= threshold:
+                return score
+        return 0
+
+    by_key: dict[tuple, list[float]] = {}
+    for r in all_results:
+        scores = r.get("judge_scores", {})
+        vals = [scores.get(d, {}).get("score") for d in DIMENSIONS]
+        if any(v is None for v in vals):
+            continue
+        run_quality = sum(vals) / len(vals)
+        key = (r["scenario"], r["method"])
+        by_key.setdefault(key, []).append(run_quality)
+
+    out = []
+    for (scenario, method), qualities in sorted(by_key.items()):
+        n = len(qualities)
+        mean = round(sum(qualities) / n, 3)
+        stddev = round(statistics.pstdev(qualities), 3) if n > 1 else 0.0
+        out.append({
+            "scenario": scenario,
+            "method": method,
+            "runs": n,
+            "mean_score": mean,
+            "stddev": stddev,
+            "consistency_score": band(stddev) if n > 1 else None,
+            "note": None if n > 1 else "only 1 run — consistency not computable",
+        })
+    return out
 
 
 # ── Adversarial Cases ──────────────────────────────────────
@@ -272,27 +483,48 @@ def run_adversarial(client: anthropic.Anthropic) -> list[dict]:
 
 # ── Report ─────────────────────────────────────────────────
 
-def write_results(all_results: list[dict], adversarial: list[dict], runs: int):
+def write_results(
+    all_results: list[dict],
+    pairwise_results: list[dict],
+    adversarial: list[dict],
+    runs: int,
+):
     """Write results.json and RESULTS.md."""
     EVALS_DIR.mkdir(exist_ok=True)
+
+    consistency = compute_consistency(all_results)
 
     output = {
         "model": MODEL_ID,
         "judge_model": JUDGE_MODEL,
+        "judge_independent": JUDGE_INDEPENDENT,
         "runs_per_scenario": runs,
         "results": all_results,
+        "consistency": consistency,
+        "pairwise": pairwise_results,
         "adversarial": adversarial,
     }
 
     with open(RESULTS_JSON, "w") as f:
         json.dump(output, f, indent=2)
 
-    # Build markdown report
+    # ── Markdown report ──
     lines = [
         "# SAP Scoping Agent — Evaluation Results\n",
-        f"Model: `{MODEL_ID}` | Judge: `{JUDGE_MODEL}` | Runs per scenario: {runs}\n",
+        f"System model (under test): `{MODEL_ID}`",
+        f"Judge model: `{JUDGE_MODEL}`",
+        (
+            "Judge independence: ✅ different model line from the system under test"
+            if JUDGE_INDEPENDENT
+            else "Judge independence: ⚠️ **SAME MODEL as the system under test — self-evaluation bias is not mitigated for this run.**"
+        ),
+        f"Runs per scenario: {runs}\n",
         "",
-        "## Pipeline vs Baseline\n",
+        "The judge is blinded to method on every call: it is never told whether it is",
+        "grading the pipeline or the baseline, and the pairwise comparison below",
+        "anonymizes and randomizes which output is \"Response A\" vs \"Response B\".",
+        "",
+        "## Absolute Scores (0-5, judge blinded to method)\n",
         "| Scenario | Method | Completeness | Accuracy | Actionability | SAP Grounding | Cost | Latency |",
         "|----------|--------|:---:|:---:|:---:|:---:|------:|--------:|",
     ]
@@ -306,6 +538,73 @@ def write_results(all_results: list[dict], adversarial: list[dict], runs: int):
         cost = f"${r.get('total_cost_usd', 0):.4f}"
         lat = f"{r.get('total_latency_ms', 0) / 1000:.1f}s"
         lines.append(f"| {r['scenario']} | {r['method']} | {c} | {a} | {act} | {sg} | {cost} | {lat} |")
+
+    lines += [
+        "",
+        "## Consistency (computed from cross-run variance, not judge-estimated)\n",
+        "Consistency is the mean of the four absolute dimension scores per run,",
+        "then the standard deviation of that per-run mean across all runs for the",
+        "same scenario+method, mapped to a 0-5 band (0 = stddev > 1.5, 5 = stddev = 0).",
+        "This is deterministic and reproducible from the raw scores above — it does",
+        "not ask the judge to estimate consistency qualitatively.",
+        "",
+        "**Caveat: with only 2-3 runs per scenario, this stddev is a small-sample",
+        "estimate. Treat it as indicative, not statistically rigorous.**",
+        "",
+        "| Scenario | Method | Runs | Mean Score | Stddev | Consistency (0-5) |",
+        "|----------|--------|:---:|:---:|:---:|:---:|",
+    ]
+    for c in consistency:
+        cs = c["consistency_score"] if c["consistency_score"] is not None else "—"
+        lines.append(
+            f"| {c['scenario']} | {c['method']} | {c['runs']} | {c['mean_score']} | {c['stddev']} | {cs} |"
+        )
+
+    lines += [
+        "",
+        "## Blinded Pairwise Comparison\n",
+        "For each run where both pipeline and baseline outputs exist, the judge saw both",
+        "anonymized as \"Response A\" / \"Response B\" (order randomized per call, never",
+        "revealed) and picked a winner or a tie per dimension, with a mandatory quoted",
+        "excerpt. Counts below are aggregated across every scenario and run.",
+        "",
+        "| Dimension | Pipeline preferred | Baseline preferred | Tie | Errors |",
+        "|-----------|:---:|:---:|:---:|:---:|",
+    ]
+    dim_counts = {d: {"pipeline": 0, "baseline": 0, "tie": 0, "error": 0} for d in DIMENSIONS}
+    for p in pairwise_results:
+        if "error" in p:
+            for d in DIMENSIONS:
+                dim_counts[d]["error"] += 1
+            continue
+        for d in DIMENSIONS:
+            winner = p.get("dimensions", {}).get(d, {}).get("winner", "")
+            if winner in dim_counts[d]:
+                dim_counts[d][winner] += 1
+    for d in DIMENSIONS:
+        counts = dim_counts[d]
+        lines.append(
+            f"| {d} | {counts['pipeline']} | {counts['baseline']} | {counts['tie']} | {counts['error']} |"
+        )
+
+    # A small number of example quotes, for spot-checking the judge actually
+    # engaged with content rather than defaulting to a label.
+    example_quotes = []
+    for p in pairwise_results:
+        if "error" in p:
+            continue
+        for d in DIMENSIONS:
+            entry = p.get("dimensions", {}).get(d, {})
+            if entry.get("quote"):
+                example_quotes.append((p.get("scenario", "?"), d, entry["winner"], entry["quote"]))
+        if len(example_quotes) >= 4:
+            break
+
+    if example_quotes:
+        lines += ["", "**Example quoted evidence (spot-check):**", ""]
+        for scenario, dim, winner, quote in example_quotes[:4]:
+            q = quote[:200].replace("\n", " ")
+            lines.append(f"- *{scenario} / {dim}* — winner: **{winner}** — \"{q}\"")
 
     lines += [
         "",
@@ -352,9 +651,15 @@ def main():
         print("No matching scenarios found.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Scenarios: {len(scenarios)} | Runs: {args.runs} | Model: {MODEL_ID}\n")
+    both_methods = not args.baseline_only and not args.pipeline_only
+
+    print(
+        f"Scenarios: {len(scenarios)} | Runs: {args.runs} | "
+        f"System model: {MODEL_ID} | Judge model: {JUDGE_MODEL}\n"
+    )
 
     all_results = []
+    pairwise_results = []
 
     for scenario in scenarios:
         for run_idx in range(args.runs):
@@ -362,17 +667,20 @@ def main():
             print(f"Scenario: {scenario['id']} | Run {run_idx + 1}/{args.runs}")
             print(f"{'='*60}")
 
+            pipeline_text = None
+            baseline_text = None
+
             # Pipeline run
             if not args.baseline_only:
                 print("\n--- Pipeline ---")
                 pipeline_result = run_pipeline_for_eval(client, scenario["input_text"])
 
-                # Combine outputs for judging
                 combined_pipeline = "\n\n---\n\n".join(
                     f"## Skill {k} Output\n\n{v}"
                     for k, v in sorted(pipeline_result["outputs"].items())
                 )
-                judge_scores = judge_output(client, scenario["id"], "pipeline", combined_pipeline)
+                pipeline_text = combined_pipeline
+                judge_scores = judge_output(client, scenario["id"], combined_pipeline)
 
                 all_results.append({
                     "scenario": scenario["id"],
@@ -388,11 +696,9 @@ def main():
             if not args.pipeline_only:
                 print("\n--- Baseline ---")
                 baseline_result = run_baseline_for_eval(client, scenario["input_text"])
+                baseline_text = baseline_result["outputs"].get("combined", "")
 
-                judge_scores = judge_output(
-                    client, scenario["id"], "baseline",
-                    baseline_result["outputs"].get("combined", "")
-                )
+                judge_scores = judge_output(client, scenario["id"], baseline_text)
 
                 all_results.append({
                     "scenario": scenario["id"],
@@ -404,6 +710,15 @@ def main():
                     "judge_scores": judge_scores,
                 })
 
+            # Blinded pairwise comparison — only possible when both methods
+            # ran this iteration.
+            if both_methods and pipeline_text is not None and baseline_text is not None:
+                print("\n--- Pairwise (blinded) ---")
+                pw = judge_pairwise(client, scenario["id"], pipeline_text, baseline_text)
+                pw["scenario"] = scenario["id"]
+                pw["run"] = run_idx
+                pairwise_results.append(pw)
+
     # Adversarial cases
     adversarial_results = []
     if not args.skip_adversarial:
@@ -412,7 +727,7 @@ def main():
         print(f"{'='*60}")
         adversarial_results = run_adversarial(client)
 
-    write_results(all_results, adversarial_results, args.runs)
+    write_results(all_results, pairwise_results, adversarial_results, args.runs)
 
 
 if __name__ == "__main__":

@@ -63,8 +63,8 @@ This skills pack is **complementary** to SAP's toolchain — its outputs feed in
 
 ```bash
 # Clone and install
-git clone https://github.com/ampayreh/ScopingAgent.git
-cd ScopingAgent
+git clone https://github.com/ampayreh/SAP_Scoping_Agent.git
+cd SAP_Scoping_Agent
 pip install -r requirements.txt
 
 # Set your API key
@@ -99,7 +99,7 @@ To use the scope-item lookup from Claude Desktop, add to `claude_desktop_config.
   "mcpServers": {
     "sap-scope-items": {
       "command": "python",
-      "args": ["/path/to/ScopingAgent/mcp_server.py"]
+      "args": ["/path/to/SAP_Scoping_Agent/mcp_server.py"]
     }
   }
 }
@@ -108,7 +108,7 @@ To use the scope-item lookup from Claude Desktop, add to `claude_desktop_config.
 ## Project Structure
 
 ```
-ScopingAgent/
+SAP_Scoping_Agent/
 ├── orchestrator.py                # Pipeline orchestrator (Claude API + tool use)
 ├── eval.py                        # Evaluation harness (pipeline vs baseline, LLM judge)
 ├── mcp_server.py                  # MCP server for scope-item lookup (stdio transport)
@@ -160,6 +160,33 @@ The orchestrator chains Skills 01→04 sequentially, persisting state after each
 6. Use **Skill 05** at any point to ground recommendations in SAP best practices
 
 Each skill can also be used independently for targeted analysis.
+
+## Evaluation Methodology
+
+`eval.py` grades the pipeline against a single-prompt baseline two ways, both
+blinded to which method produced the output:
+
+- **Absolute scoring (0-5 per dimension)** — completeness, accuracy,
+  actionability, SAP grounding. The judge sees only the output and the
+  scenario; it is never told which method produced it.
+- **Blinded pairwise comparison** — the same run's pipeline and baseline
+  outputs are shown to the judge anonymized as "Response A" / "Response B"
+  (randomized per call, never revealed), and the judge picks a winner or a
+  tie per dimension with a mandatory quoted excerpt as evidence. This is
+  what actually discriminates between the two methods — an absolute 0-5
+  scale on its own tends to cluster near the top and can't tell you which
+  is better, only that both are "good."
+- **Consistency** is computed from the standard deviation of scores across
+  repeated runs (`--runs N`), not estimated by the judge.
+- **Judge independence is enforced by default**, not just possible: the
+  judge model defaults to a different model line than the system under
+  test, and the harness warns loudly if a run's configuration collapses
+  them to the same model.
+
+See `DECISIONS.md` #8 for the full account of why the eval harness needed
+this fix, and `evals/RESULTS.md` for the header on any committed run
+stating the exact system/judge models used and whether they were
+independent for that run.
 
 ## What This Does Not Do
 
