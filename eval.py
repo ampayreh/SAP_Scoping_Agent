@@ -64,16 +64,17 @@ _DEFAULT_MODEL = "us.anthropic.claude-sonnet-4-6" if _USE_BEDROCK else "claude-s
 # output with an Opus-class judge is the standard mitigation for
 # same-model self-evaluation bias.
 #
-# The Bedrock ID below follows this repo's existing (pre-fix) convention for
-# _DEFAULT_MODEL ("us.anthropic.claude-sonnet-4-6" — a short cross-region
-# inference-profile-style ID, not the full dated Bedrock model ID format)
-# with "sonnet" swapped for "opus". Bedrock model availability is
+# The Bedrock ID below was verified with a live invoke_model call against
+# this account on 2026-08-25 (a naive "swap sonnet for opus" guess following
+# _DEFAULT_MODEL's naming pattern, "us.anthropic.claude-opus-4-6", is listed
+# by list-inference-profiles but returns AccessDeniedException on invoke —
+# listed is not the same as enabled). Bedrock model access is still
 # account/region-specific: if this ID is not enabled in your account, the
-# judge call will fail loudly with a clear "model not found"-class error
-# rather than silently mis-grading — confirm the ID against
-# `aws bedrock list-foundation-models` (or your account's enabled models)
-# before a real run, and override via JUDGE_MODEL if it differs.
-_DEFAULT_JUDGE_MODEL = "us.anthropic.claude-opus-4-6" if _USE_BEDROCK else "claude-opus-4-1-20250805"
+# judge call fails loudly with a clear access-denied error rather than
+# silently mis-grading — confirm with a cheap invoke_model call (see
+# DECISIONS.md #8) before a real run, and override via JUDGE_MODEL if it
+# differs for you.
+_DEFAULT_JUDGE_MODEL = "us.anthropic.claude-opus-4-6-v1" if _USE_BEDROCK else "claude-opus-5"
 
 MODEL_ID = os.environ.get("MODEL_ID", _DEFAULT_MODEL)
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", _DEFAULT_JUDGE_MODEL)
