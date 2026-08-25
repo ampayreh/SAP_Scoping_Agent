@@ -335,3 +335,79 @@ guessing at the agent. This entry does the same thing one level up: the
 eval *harness itself* — not any scenario, not the orchestrator, not the
 skills — was measuring the wrong thing in three independent ways, and all
 three are now fixed at the layer that actually caused them.
+
+
+---
+
+## 9. First real run under the #8 fix: honest result, and one new finding
+
+**Context:** #8 fixed the eval harness (independent judge, blinded absolute
+scoring, blinded pairwise comparison, computed consistency) but could not
+be run for real in that session — no API credentials were available. This
+entry records the first actual run under the fixed harness: 2 scenarios ×
+3 runs, `us.anthropic.claude-sonnet-4-6` as the system under test,
+`us.anthropic.claude-opus-4-6-v1` as the independently-verified judge
+(confirmed with a live `invoke_model` call before the run — the naive
+`us.anthropic.claude-opus-4-6` guess in #8's first draft did not exist and
+was corrected to the `-v1` suffix after checking `list-inference-profiles`
+against the actual account).
+
+**The result, stated plainly, as instructed: the pipeline does not beat
+the baseline on quality in this run.** Absolute scores still cluster at
+4-5 for both methods on every dimension — the ceiling effect #8 named is
+real and confirmed, absolute scoring alone still can't discriminate. The
+blinded pairwise comparison, which exists specifically to break that
+ceiling, shows the **baseline winning or tying more often than the
+pipeline on every dimension**: across 6 runs × 4 dimensions (24
+judgments), baseline was preferred 13 times, pipeline 9 times, 2 ties.
+The gap is worst on **actionability** (baseline preferred 4 of 6,
+pipeline 1, tie 1) — the dimension most directly about whether a
+consultant could use the output as-is, and the one most plausibly hurt by
+the truncation finding below. Completeness and SAP grounding were split
+close to even (3-3 each); accuracy leaned baseline (3-2, 1 tie).
+
+**Cost and latency are not close.** Pipeline runs averaged $1.71 versus
+$0.23 for baseline — **about 7.4× the cost** — and 476s versus 273s
+latency — **about 1.75× the time**. Combined with the quality result
+above: on these two scenarios, the orchestrated pipeline costs roughly
+7× more, runs roughly 1.75× slower, and is not judged better on any
+dimension in blinded head-to-head comparison. **This is the honest
+number, not a hedged one.** It is also, per the discipline #8 argued for,
+a stronger applied-AI story than a fabricated win would have been: the
+harness was built to actually discriminate, and when it did, it found a
+result the author didn't get to pick.
+
+**One caveat that cuts the other way, stated with equal honesty:** n=3
+runs per scenario on 2 scenarios is a small sample, and the
+`Consistency` band above (computed, not judge-estimated) shows both
+methods scoring 4-5 — i.e. both are reasonably stable, so the pairwise
+split is unlikely to be pure noise, but it is not a large-sample result
+either. A materially higher `--runs` count would sharpen this, not soften
+it — the honest expectation given this data is that more runs would
+likely confirm the same direction, not reverse it, but that is an
+expectation, not a re-run result.
+
+**New finding, verified with direct evidence, NOT fixed here (in scope
+for a future PR, not this one):** Skill 01 (Client Discovery Intake) hits
+its `max_tokens` ceiling (8192) on **6 out of 6 runs**, in both scenarios,
+with zero variance in output token count — the textbook signature of
+truncation, not content that happens to land exactly at a limit.
+Confirmed directly by inspecting a raw output file
+(`state/run-20260825T232632-skill-01.json`): the file ends mid-sentence,
+mid-string, with no closing braces — `"...ranged from $18M to $40M` and
+then nothing. This is a real defect in `orchestrator.py`'s `SKILLS` config
+(`01-client-discovery-intake.md`'s `max_tokens: 8192`), not in the eval
+harness, and per this fix's own scope boundary
+(`orchestrator.py`/`skills/` untouched) it is documented here rather than
+patched. It plausibly explains some of the actionability and completeness
+losses above, since Skill 01's output feeds every downstream skill — but
+that is a hypothesis, not verified by this entry, and should not be
+overstated.
+
+**Why this belongs in DECISIONS.md rather than only in RESULTS.md's
+tables:** the raw tables are generated deterministically and carry no
+interpretation. The interpretation — that the negative result is real,
+that it should be reported as the honest number, and that a new,
+separately-scoped defect was found in the same pass — is exactly the kind
+of judgment call this file exists to record, per #6, #7, and #8's
+established convention.
