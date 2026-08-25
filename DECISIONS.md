@@ -213,3 +213,125 @@ score), or the failure gets shrugged off as noise (real regressions get
 lost in known-flaky test noise). Root-causing to the actual failure mode
 before touching either the agent or the test is the same discipline
 applied to the LMMSmartClinicAI robustness fixes in the same audit pass.
+
+
+---
+
+## 8. Eval harness fix: same-model judging, unblinded method label, missing Consistency dimension, ceiling-effect scoring
+
+**Context:** The committed `evals/results.json` showed `"model"` and
+`"judge_model"` as the identical value (`us.anthropic.claude-sonnet-4-6`),
+and `JUDGE_MODEL`'s default in `eval.py` was literally `_DEFAULT_MODEL` —
+the same variable used for the system under test. An unconfigured run
+self-judged. Separately, `judge_output()`'s prompt to the judge included
+`"Method: {method}"` before the output to grade, so the judge always knew
+whether it was scoring the pipeline or the baseline before scoring
+anything. And `benchmarks/benchmark-methodology.md` specifies five scored
+dimensions including Consistency ("do repeated runs produce similar
+quality"), but `JUDGE_RUBRIC` only asked for four — Consistency was
+documented but never actually measured. Finally, the committed absolute
+0-5 scores clustered almost entirely at 4 and 5 for both methods, which
+is a ceiling effect: a same-scale judge with no comparison point tends to
+default high, and a scale that can't spread scores apart can't tell you
+which method is actually better.
+
+**Why each of these is a real methodological problem, not a nitpick:**
+
+- **Same-model judging is not evaluation, it's the model re-stating its
+  own preferences.** A model grading its own output (or a same-family
+  output) has no independent check on its blind spots — if it
+  systematically over- or under-weights something, the judge shares that
+  bias with the system under test. This is the textbook argument for an
+  independent judge model, and this repo's own README asserted the judge
+  was "separately configurable... to avoid self-evaluation bias" without
+  the default actually doing that.
+- **An unblinded method label lets the judge's prior about "agentic
+  pipelines are more thorough" do the scoring instead of the content.**
+  Once the judge is told `Method: pipeline`, any score it assigns is
+  confounded with whatever expectation "pipeline" carries — there is no
+  way to tell from the resulting number whether the pipeline actually
+  produced better content or the judge expected it to.
+- **A documented dimension nobody computes is worse than no dimension.**
+  Anyone reading `benchmark-methodology.md` and then `results.json` would
+  reasonably assume Consistency was being measured somewhere. It never
+  was.
+- **A 0-5 absolute scale a judge defaults to 4-5 on cannot discriminate.**
+  If every response — good or mediocre — gets scored near the ceiling,
+  the number stops carrying information about which is better. This is a
+  known failure mode of single-output absolute-scale LLM judging, and the
+  committed data shows exactly this pattern.
+
+**Fixes, one per problem:**
+
+1. **`JUDGE_MODEL`'s default is now a different model line than
+   `MODEL_ID`'s default (Opus vs. Sonnet), not just an independently
+   overridable variable that happened to default to the same value.**
+   `JUDGE_INDEPENDENT = MODEL_ID != JUDGE_MODEL` is computed at import
+   time and, if false, the harness prints a loud stderr warning before
+   doing anything else — same-model judging is still permitted (an
+   operator may have a real reason, e.g. only one model line available in
+   their region), but it can never happen silently again. `results.json`
+   now carries `"judge_independent": true/false` and `RESULTS.md` states
+   it plainly in the header, so independence is verifiable at a glance
+   instead of requiring someone to compare two JSON fields by hand.
+
+2. **`judge_output()` no longer takes or sends a `method` argument.** The
+   prompt now sends only the scenario ID (for domain context — it does
+   not identify which method produced the output, since both methods run
+   against the same scenario) and the output text. `JUDGE_RUBRIC` was
+   also given an explicit instruction not to guess or speculate about
+   what process produced the output.
+
+3a. **Consistency is now computed programmatically in
+    `compute_consistency()`, not judged.** For each (scenario, method), the
+    four absolute dimension scores per run are averaged into one "run
+    quality" scalar, and the standard deviation of that scalar across runs
+    is mapped to a 0-5 band matching `benchmark-methodology.md`'s own
+    descriptions (stddev 0 → 5, "near-identical"; stddev > 1.5 → 0,
+    "wildly different"). This is deterministic and reproducible from the
+    same raw scores every time, which is a stronger match to what the
+    methodology doc is actually asking than a judge's one-shot qualitative
+    guess would ever be. **Honest limitation, stated in both the code and
+    `RESULTS.md`:** with only 2-3 runs per scenario, the sample standard
+    deviation is noisy — these numbers are indicative, not statistically
+    rigorous, until run counts are materially higher.
+
+3b. **Added a blinded pairwise comparison mode (`judge_pairwise()`),
+    run alongside the absolute scoring, not instead of it.** For every
+    run where both methods produced output, both are shown to the judge
+    anonymized as "Response A" / "Response B", with which one is A
+    randomized per call via `random.random()` and never revealed to the
+    judge. The judge picks a winner or declares a tie per dimension and
+    must quote a verbatim excerpt as evidence for every judgment,
+    including ties. The A/B assignment is recorded (for our own
+    bookkeeping, never sent to the judge) so the winner can be decoded
+    back to "pipeline" / "baseline" / "tie" after the call returns.
+    `RESULTS.md` reports aggregate win/tie counts per dimension across all
+    scenarios and runs, plus a handful of the actual quoted excerpts so a
+    reader can spot-check that the judge engaged with content rather than
+    defaulting to a label.
+
+**Verification method, honestly stated:** the new code was validated with
+a stubbed Anthropic client that returns canned JSON and records every
+prompt sent, run as an offline self-test (not committed — it exercises
+internal functions directly, not a public contract). It confirms: (a) no
+`Method:` label or the words "pipeline"/"baseline" appear in either the
+absolute or pairwise judge prompts; (b) the pairwise A/B assignment is
+actually randomized across trials, not fixed; (c) the pairwise decode
+maps a canned "A" verdict back to whichever method was actually assigned
+to A in that trial, correctly, every time; (d) the consistency computation
+gives a zero-stddev, score-5 result for identical repeated scores and a
+lower score for varied ones; (e) `write_results()` produces valid JSON and
+Markdown containing all three new sections without crashing. **This
+confirms the code's logic is correct. It does not confirm what the model
+actually says when asked these blinded questions for real** — that
+requires a live API run, which this fix's authoring session did not have
+credentials to perform. See the open item in `evals/RESULTS.md` and this
+repo's `README.md`.
+
+**Why this is the same discipline as #7:** #7 root-caused an eval failure
+to the test being wrong, not the agent, and fixed the test rather than
+guessing at the agent. This entry does the same thing one level up: the
+eval *harness itself* — not any scenario, not the orchestrator, not the
+skills — was measuring the wrong thing in three independent ways, and all
+three are now fixed at the layer that actually caused them.

@@ -13,7 +13,7 @@ This benchmark evaluates the SAP S/4HANA Implementation Scoping Agent skills pac
 | **Completeness** | Does the output cover all critical scoping dimensions? | 0: Missing major areas. 1: Covers <40% of dimensions. 2: Covers ~50%. 3: Covers ~70%. 4: Covers ~90%. 5: Comprehensive coverage with no significant gaps |
 | **Accuracy** | Are module recommendations and timeline estimates reasonable? | 0: Fundamentally wrong. 1: Major errors. 2: Some correct, some misleading. 3: Mostly reasonable with minor issues. 4: Accurate with appropriate caveats. 5: Expert-level accuracy |
 | **Actionability** | Could a real consultant use this as a starting point? | 0: Unusable. 1: Generic/vague. 2: Some actionable elements. 3: Usable with significant rework. 4: Usable with minor refinement. 5: Ready to present with formatting only |
-| **Consistency** | Do repeated runs produce similar quality? | 0: Wildly different each run. 1: Major variations. 2: Moderate variations. 3: Generally consistent with some variation. 4: Highly consistent. 5: Near-identical quality across runs |
+| **Consistency** | Do repeated runs produce similar quality? *(as of `eval.py`'s 2026-08-25 fix, computed programmatically from the standard deviation of cross-run scores — not judge-estimated. See DECISIONS.md #8 for why.)* | 0: Wildly different each run. 1: Major variations. 2: Moderate variations. 3: Generally consistent with some variation. 4: Highly consistent. 5: Near-identical quality across runs |
 | **Time Saved** | Estimated reduction vs. manual process | Qualitative estimate: hours/days saved compared to a consultant performing the same analysis manually |
 
 ### Scoring Protocol
