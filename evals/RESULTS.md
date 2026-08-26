@@ -303,3 +303,54 @@ committed results without an explicit flag. **Not fixed here** (out of this
 step's scope); named so the next person is not surprised by it.
 
 See `DECISIONS.md` #15 for the full account.
+
+---
+
+## 2026-08-26 — Cap-calibration probe: does the tool-round budget buy quality?
+
+`_MAX_TOOL_ROUNDS` was set to 8 as an explicitly un-optimized middle ground
+(#15). Before spending on a full rerun, this probe measured whether the
+budget actually pays for itself. Method: generate the same scenario twice
+(cap 2 vs cap 8), judge both absolutely, then run the blinded pairwise
+comparison **5× on the identical pair** — generation is the expensive part
+and happens once per cap, while judge calls are cheap, so repeating the
+comparison directly addresses the ~1-in-5 verdict instability measured in
+#13. Reproducible via `scripts/cap_probe.py`; raw data in
+`evals/cap_probe.json`.
+
+| | cap 2 | cap 8 |
+|---|---|---|
+| Cost (1 pipeline run) | **$2.06** | **$3.63** (+76%) |
+| Tool calls | 24 | 54 |
+| Latency | 1143s | 1156s (no real difference) |
+| Total output | 225,838 chars | 224,207 chars |
+| Absolute score (mean of 4) | 3.75 | **4.25** |
+| Blinded pairwise (5 calls × 4 dims) | 6 wins | **12 wins** (2 ties) |
+
+**The probe did not support the cheaper option, which is the opposite of
+the hypothesis it was run to test.** Cap 8 leads on both grading modes.
+
+**Two findings that make the result interpretable rather than just a
+number:**
+
+1. **Output volume is identical (within 0.2% per skill) because both caps
+   are limited by `max_tokens`, not by the tool budget.** Skills 02 and 03
+   hit `16384/16384` and report `confidence: low` under *both* caps. So the
+   extra lookups do not buy *more* output — they buy better-grounded
+   content inside the same fixed budget.
+2. **The clearest gap is on SAP grounding (cap 8 wins 4–1)** — precisely the
+   dimension the scope-item lookup tool exists to support. That mechanistic
+   coherence is why this reads as signal rather than noise: the dimension
+   that improved is the one more lookups should improve.
+
+**Honest limits.** Generation is **n=1 per cap** on **one scenario** — the
+5× repetition covers judge noise, not generation variance. One of the five
+pairwise calls flipped to cap 2 on all four dimensions, a live reminder of
+#13's instability. And this compares 2 vs 8 only; whether 8 is better than
+12 or 20 is untested, and cost grows steeply (20 rounds → 123 calls on a
+single skill, #15). **The probe is sufficient to reject the cheap option,
+which is what it was run to decide — it is not a claim that 8 is optimal.**
+
+**Decision: keep `_MAX_TOOL_ROUNDS = 8` for the full rerun.** The delta
+across a full n=3 matrix is roughly $9 (~$15 vs ~$24), which is not worth
+knowingly running a configuration the evidence says is worse.

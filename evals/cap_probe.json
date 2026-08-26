@@ -1,0 +1,161 @@
+{
+  "scenario": "scenario-a-agribusiness",
+  "caps": [
+    2,
+    8
+  ],
+  "n_pairwise": 5,
+  "judge_model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "system_model": "us.anthropic.claude-sonnet-4-6",
+  "runs": {
+    "2": {
+      "cap": 2,
+      "total_chars": 225838,
+      "per_skill_chars": {
+        "01": 41619,
+        "02": 72801,
+        "03": 70564,
+        "04": 40753
+      },
+      "cost_usd": 2.0561,
+      "latency_s": 1143.0,
+      "tool_calls": 24,
+      "confidence": {
+        "01": {
+          "level": "medium",
+          "basis": "no tool-grounding signal available for this skill (Skill 01/04 are not given the scope-item tool); reflects only that output was not truncated, not that content was independently verified"
+        },
+        "02": {
+          "level": "low",
+          "basis": "final response landed at 16384/16384 tokens (within 5% of the max_tokens ceiling) -- plausibly truncated, regardless of content"
+        },
+        "03": {
+          "level": "low",
+          "basis": "final response landed at 16384/16384 tokens (within 5% of the max_tokens ceiling) -- plausibly truncated, regardless of content"
+        },
+        "04": {
+          "level": "medium",
+          "basis": "no tool-grounding signal available for this skill (Skill 01/04 are not given the scope-item tool); reflects only that output was not truncated, not that content was independently verified"
+        }
+      },
+      "absolute": {
+        "completeness": {
+          "score": 4,
+          "reasoning": "The output covers all critical scoping dimensions: client profile, current landscape, business requirements, compliance, transformation context, stakeholder map, and SAP product fit assessment. However, several gaps prevent a full 5: (1) no detailed assessment of field connectivity / IT infrastructure readiness despite flagging it as critical, (2) organizational change management strategy is outlined but lacks quantified effort estimates, (3) no explicit phasing roadmap or dependency sequencing for the identified modules, (4) compliance section identifies frameworks but lacks specific SAP configuration implications. The output is substantive and professional but stops short of a complete implementation scoping blueprint."
+        },
+        "accuracy": {
+          "score": 4,
+          "reasoning": "References to SAP modules (FI, CO, MM, QM, SD, WM, GTS) are correctly scoped to an agribusiness export scenario. EU Regulation (EC) 178/2002 traceability requirement is accurately characterized as 'one step forward, one step back' and correctly linked to batch management. Multi-currency accounting, export documentation, and batch tracking are appropriately mapped to modules. Tanzania regulatory references (TCB, TRA, PDPA 2022, TPHPA) are accurate frameworks, though specific implementation details are not provided. Product tier reasoning (Business One vs. S/4HANA GROW based on revenue threshold) is sound but the stated threshold ($10\u201315M) is approximate and not pinned to confirmed SAP sizing guidelines. Minor: the output conflates 'GROW offer' with S/4HANA Cloud Public Edition; GROW is SAP's accelerated implementation package, not a distinct product tier."
+        },
+        "actionability": {
+          "score": 3,
+          "reasoning": "A real SAP consultant could use this as a starting briefing document but would need to complete critical steps before it is presentation-ready: (1) The 13 'missing information' flags are well-structured and could be directly used as a customer questionnaire, but no scoring rubric or risk-mitigation pathway is provided if answers are unfavorable. (2) The 10 clarifying questions are actionable but lack suggested follow-up thresholds (e.g., 'if revenue <$5M, recommend Business One; if $5\u201315M, evaluate both; if >$15M, recommend S/4HANA'). (3) The stakeholder map flags unknown roles but provides no hiring/contracting guidance (e.g., 'implement partner should plan to provide interim IT leadership' is vague). (4) Module signals are high-level; no effort estimates, sequencing dependencies, or Clean Core compliance checks are provided. (5) The document ends abruptly mid-sentence in the WM/EWM description, suggesting incomplete output. A consultant would need to add: phasing roadmap, effort estimates by module, data migration strategy, risk register with mitigation, and financial ROI model before this can be presented to the customer."
+        },
+        "sap_grounding": {
+          "score": 4,
+          "reasoning": "The output demonstrates solid SAP methodology awareness: (1) Explicit Clean Core readiness assessment with BTP extension strategy (mobile money) is correctly positioned as 'acceptable Clean Core practice.' (2) Greenfield transformation is correctly identified as the most favorable technical starting position. (3) Module recommendations are tied to specific SAP objects (Batch Management sub-module, inspection lots in QM, multi-currency GL configuration). (4) SAP Agribusiness industry features are mentioned but not detailed. (5) Activation phase language ('Phase 1: office finance and export documentation; Phase 2: field operations') aligns with SAP Activate phasing. However, gaps prevent a full 5: (1) No explicit reference to SAP Activate workstreams (Discover, Prepare, Realize, Deploy phases) or scope item numbering (e.g., FI-001, MM-012 formats typical in SAP methodologies). (2) Product tier decision does not cite specific SAP sizing rules or Activate guidance documents. (3) No mention of SAP Solution Manager or Cloud Alm for ongoing post-go-live support. (4) Business process documentation (e.g., RACI matrices, To-Be process flows aligned to S/4HANA standard processes) is not provided, which would be expected in a SAP Discover phase output."
+        }
+      }
+    },
+    "8": {
+      "cap": 8,
+      "total_chars": 224207,
+      "per_skill_chars": {
+        "01": 37523,
+        "02": 72684,
+        "03": 70741,
+        "04": 43158
+      },
+      "cost_usd": 3.6288,
+      "latency_s": 1156.0,
+      "tool_calls": 54,
+      "confidence": {
+        "01": {
+          "level": "medium",
+          "basis": "no tool-grounding signal available for this skill (Skill 01/04 are not given the scope-item tool); reflects only that output was not truncated, not that content was independently verified"
+        },
+        "02": {
+          "level": "low",
+          "basis": "final response landed at 16384/16384 tokens (within 5% of the max_tokens ceiling) -- plausibly truncated, regardless of content"
+        },
+        "03": {
+          "level": "low",
+          "basis": "final response landed at 16384/16384 tokens (within 5% of the max_tokens ceiling) -- plausibly truncated, regardless of content"
+        },
+        "04": {
+          "level": "medium",
+          "basis": "no tool-grounding signal available for this skill (Skill 01/04 are not given the scope-item tool); reflects only that output was not truncated, not that content was independently verified"
+        }
+      },
+      "absolute": {
+        "completeness": {
+          "score": 4,
+          "reasoning": "The deliverable covers the critical scoping dimensions comprehensively: client profile, current landscape, business requirements, compliance, transformation context, and stakeholder analysis. It explicitly flags 11 missing information items (revenue, go-live date, budget, IT infrastructure, user count, regulatory detail, stakeholder map, certifications, mobile money provider, export destinations, facility structure) and provides 10 prioritized clarifying questions. The output identifies module relevance, product-fit considerations, and change management risks. Minor gaps: no detailed timeline milestones, no preliminary resource estimate, no formal risk register (only narrative risk identification). The discovery brief is intentionally incomplete-by-design and explicitly signals this, which is appropriate for Phase 1 discovery output. Coverage is approximately 80\u201385% of typical SAP scoping dimensions; gaps are acknowledged and actionable."
+        },
+        "accuracy": {
+          "score": 4,
+          "reasoning": "Technical accuracy is strong. Multi-currency accounting module assignments (FI-GL, FI-AP, FI-AR) are correct. QM/MM batch traceability linkage for food safety compliance is accurate. BTP requirement for mobile money integration is correctly identified as the appropriate architecture (API management + iFlow, not native SAP). SAP Business One vs. S/4HANA vs. GROW decision criteria are factually sound (revenue thresholds, user count ranges, cost profiles are realistic). EU General Food Law (Reg. 178/2002) reference is accurate. Timeline estimate of 6\u20139 months for greenfield cloud deployment with stated scope is reasonable. However, two minor concerns: (1) the claim that SAP Business One is 'typically 10\u2013250 employees' is correct but slightly undersells it \u2014 some 250+ employee companies use it effectively; (2) Tanzania cashew harvest season cited as 'May\u2013August' is directionally correct but should specify this may vary by region. No material errors detected; confidence in recommendations is justified."
+        },
+        "actionability": {
+          "score": 4,
+          "reasoning": "A real SAP consultant could use this as a starting point for pre-sales discovery follow-up or project scoping. The output provides: (1) a prioritized clarifying questions list (marked CRITICAL/IMPORTANT/HELPFUL) that directly informs discovery calls; (2) explicit module recommendations with rationale; (3) change management risk assessment with mitigation suggestions (parallel run, local champions, Swahili training); (4) clean-core architecture guidance for BTP integration; (5) a decision gate framework (revenue \u2192 product tier selection). The metadata includes data completeness score (58%) and confidence level (MEDIUM), allowing downstream stakeholders to calibrate their reliance on recommendations. However, actionability could be strengthened by: (1) no preliminary sizing estimate (e.g., 'estimated 150\u2013200 FTE days for implementation'); (2) no draft project structure/phases; (3) no vendor shortlist or partner selection criteria. The output is 70\u201375% ready for presentation; formatting refinement and addition of preliminary timeline would make it presentation-ready. For an internal SAP team, it is immediately actionable; for client delivery, light rework needed."
+        },
+        "sap_grounding": {
+          "score": 5,
+          "reasoning": "The output demonstrates strong SAP methodology grounding: (1) Activate framework: deployment preference assessment (Public Cloud), clean-core readiness analysis, timeline estimation methodology all align with SAP Activate; (2) Scope items: FI, CO, MM, SD, QM, WM, BTP are all mapped to specific client processes (procure-to-pay, order-to-cash, batch traceability, export docs); (3) Clean Core principle: explicitly discussed for greenfield context, with BTP extension pattern recommended as clean-core compliant; (4) SAP GROW context: mentioned as accelerated methodology option tied to revenue thresholds and scope complexity; (5) Business One vs. S/4HANA decision gate: frames product selection using SAP product portfolio logic, not generic ERP sizing. Module recommendations reference standard SAP process names (Record-to-Report, Procure-to-Pay, Goods Receipt \u2192 Batch Management). BTP architecture (Integration Suite, iFlow, API management) is technically precise. Regulatory compliance discussion reflects SAP's tax/GTS positioning. No generic 'ERP system' language; recommendations are consistently SAP-specific. The only minor gap is limited discussion of SAP Analytics Cloud or Fiori UX considerations, but these are appropriate omissions at discovery stage. SAP grounding is approximately 95% \u2014 this is expert-level SAP methodology application."
+        }
+      }
+    }
+  },
+  "pairwise_verdicts": [
+    {
+      "completeness": "cap8",
+      "accuracy": "tie",
+      "actionability": "cap8",
+      "sap_grounding": "cap8"
+    },
+    {
+      "completeness": "cap2",
+      "accuracy": "tie",
+      "actionability": "cap2",
+      "sap_grounding": "cap8"
+    },
+    {
+      "completeness": "cap8",
+      "accuracy": "cap8",
+      "actionability": "cap8",
+      "sap_grounding": "cap8"
+    },
+    {
+      "completeness": "cap8",
+      "accuracy": "cap8",
+      "actionability": "cap8",
+      "sap_grounding": "cap8"
+    },
+    {
+      "completeness": "cap2",
+      "accuracy": "cap2",
+      "actionability": "cap2",
+      "sap_grounding": "cap2"
+    }
+  ],
+  "pairwise_tally": {
+    "completeness": {
+      "cap8": 3,
+      "cap2": 2
+    },
+    "accuracy": {
+      "tie": 2,
+      "cap8": 2,
+      "cap2": 1
+    },
+    "actionability": {
+      "cap8": 3,
+      "cap2": 2
+    },
+    "sap_grounding": {
+      "cap8": 4,
+      "cap2": 1
+    }
+  }
+}

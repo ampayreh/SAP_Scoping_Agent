@@ -1032,3 +1032,69 @@ corrected version now reports `16384/16384` with
   all — they report `medium` by construction, which is an honest
   placeholder, not a measurement. Do not present this as a calibrated
   confidence score.
+
+
+---
+
+## 16. Cap calibration: measuring whether the tool budget pays for itself
+
+**Why this ran.** #15 set `_MAX_TOOL_ROUNDS = 8` and said plainly it was
+"a reasonable default, not a tuned one — no A/B eval across cap values
+has been run." Before spending on a full rerun at that value, that gap
+was closed. The working hypothesis going in was that the cheap option
+would win: an earlier 2-round run had produced a complete 72k-character
+analysis, which suggested the extra rounds were waste.
+
+**Method, and one design choice worth naming.** Generate the same
+scenario twice (cap 2, cap 8), score both absolutely, then run the
+blinded pairwise comparison **five times on the identical pair**.
+Generation is the expensive part and runs once per cap; judge calls are
+Haiku and cost pennies. So repeating the *comparison* rather than the
+*generation* buys direct coverage of the ~1-in-5 verdict instability
+measured in #13, for almost no money. Deciding a configuration question
+on a single pairwise call would have been indefensible given what #13
+already established. Script: `scripts/cap_probe.py`.
+
+**The hypothesis was wrong.** Cap 8 leads on both grading modes:
+absolute 4.25 vs 3.75, blinded pairwise 12 wins vs 6 (2 ties) across
+5 calls × 4 dimensions. Cost: $3.63 vs $2.06 per pipeline run (+76%).
+Latency is effectively identical (1156s vs 1143s) — the tool calls are
+fast; wall-clock is dominated by long text generation.
+
+**Two observations that turn this from a number into an explanation:**
+
+1. **Total output is identical — 225,838 vs 224,207 characters, within
+   0.2% per skill — because both caps are bounded by `max_tokens`, not by
+   the tool budget.** Skills 02 and 03 report `final_stop_reason:
+   "max_tokens"` and `confidence: low` under *both* configurations. The
+   extra lookups therefore do not produce *more* output; they produce
+   better-grounded content inside the same fixed ceiling. This also
+   retroactively explains why the earlier 2-round run "looked fine" on
+   length alone — length was never the variable the cap controlled.
+2. **The largest gap is on SAP grounding, 4–1 to cap 8** — the exact
+   dimension the scope-item lookup tool exists to serve. A quality
+   difference showing up preferentially on the dimension with a
+   mechanistic reason to improve is much harder to dismiss as noise than
+   a diffuse improvement would be.
+
+**What this does NOT establish, stated plainly.** Generation is **n=1 per
+cap on one scenario**; the 5× repetition covers judge variance, not
+generation variance. One of the five calls flipped to cap 2 on all four
+dimensions — #13's instability, live. And this tests 2 vs 8 only:
+whether 8 beats 12 or 20 is untested, and cost scales steeply (20 rounds
+produced 123 tool calls on a single skill, #15). **This probe is
+sufficient to reject the cheap option — the decision it was run to make —
+and is not a claim that 8 is optimal.**
+
+**Decision: `_MAX_TOOL_ROUNDS` stays at 8 for the full rerun.** The
+difference across a full n=3 matrix is roughly $9 (~$15 at cap 2 vs ~$24
+at cap 8). Knowingly running a configuration the evidence says is worse,
+to save $9 on a run whose entire purpose is producing defensible numbers,
+would defeat the point of running it.
+
+**A note on why this entry exists at all.** The cheap answer was
+available and attractive, and taking it would have been invisible — no
+one would have known the question went unasked. The probe cost $5.68 and
+returned the opposite of the expected answer. That is the argument for
+running it, and it is the reason the value in `_MAX_TOOL_ROUNDS` is now
+defensible under questioning rather than merely documented.
