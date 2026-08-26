@@ -130,3 +130,41 @@ effect size can cross p<0.05 at this sample size. This does not close
 the "not enough runs for real power" gap; it makes the size of that gap
 explicit and computed, rather than asserted in prose. See `DECISIONS.md`
 #12.
+
+**2026-08-26 — Step 2 of 4, interview-rigor pass: judge test-retest
+reliability check.** Added `--judge-reliability-check` (opt-in, `--reliability-n`
+controls call count, default 5): calls the judge N times on one FIXED, real
+(pipeline, baseline) pair — cached once under `evals/fixtures/` on first
+run so every future invocation makes zero system-under-test calls, isolating
+the judge's own variance from the pipeline's — using both the absolute-scoring
+prompt and the blinded pairwise prompt.
+
+**Real result, run against `scenario-b-high-tech`, N=5, judge = Haiku:**
+absolute scoring is fairly stable (pipeline: 4 identical calls scored
+5/5/5/5, 1 call scored 4/4/4/4 uniformly lower — consistent with one call
+being marginally harsher across the board, not per-dimension noise;
+baseline: perfectly stable, 5/5/5/5 on every one of 5 calls, zero variance).
+**Blinded pairwise verdicts are markedly less stable.** Completeness and
+actionability each flipped 1/5 times from a real 4/5 majority. SAP grounding
+flipped 2/5 from a weaker 3/5 majority. **Accuracy showed NO stable majority
+at all across 5 identical calls — votes split pipeline/pipeline/baseline/tie/baseline,
+a genuine 2-2-1 tie.** The judge is not converging on one answer for this
+dimension on identical input.
+
+**A bug in this new code, found and fixed before being trusted:** the first
+version used `statistics.mode()` to pick a "majority" verdict, which
+silently tie-breaks a genuine split (picks whichever value appears first in
+the list) rather than reporting that no majority exists — this would have
+mislabeled accuracy's real 2-2-1 tie as "3 of 5 disagreed with the
+majority," implying a majority that does not exist. Fixed to detect ties
+explicitly via `Counter` and report `has_stable_majority: false` with the
+full vote distribution when there is one, rather than asserting a winner.
+See `DECISIONS.md` #13.
+
+**What this means for every comparison in this file so far:** #9-#11's
+findings were built from independent judge calls (different runs, never
+the identical input judged twice), so this doesn't invalidate them — but
+it does mean a *single* pairwise verdict, especially on accuracy, carries
+real judge noise on top of whatever true quality difference exists. This
+is not fixed by this step; it is measured by it. See DECISIONS.md #13 for
+the full honest account of what this does and does not close.

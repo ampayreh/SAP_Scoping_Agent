@@ -728,3 +728,94 @@ limitation: real, correctly computed, but resampling 3 points 10,000 times
 does not manufacture statistical power that 3 points do not have. Anyone
 citing this comparison should cite the tie and the p-value together, not
 the tie alone.
+
+
+---
+
+## 13. Interview-prep rigor pass, Step 2 of 4: does the judge score
+    identical input the same way twice?
+
+**Context.** Every finding in this file that cites a judge score or a
+pairwise verdict (#8-#12) implicitly assumes the judge is a stable
+measuring instrument — that if you asked it to grade the exact same
+output twice, it would give roughly the same answer. That assumption had
+never actually been tested. It was time to test it before defending any
+of those numbers in an interview.
+
+**What was added, in `eval.py`:**
+
+- `--judge-reliability-check` (opt-in flag, off by default — this is a
+  diagnostic, not a per-eval necessity) and `--reliability-n` (default 5).
+- `_load_or_create_reliability_fixture()`: on first invocation, generates
+  ONE real pipeline run and ONE real baseline run and saves both under
+  `evals/fixtures/`. This one-time generation was unavoidable — baseline
+  output has never been persisted anywhere else in this harness (see
+  #10/#11, where recovering it after the fact needed a fresh call too) —
+  but every subsequent invocation loads the saved files and makes ZERO
+  system-under-test calls. This is deliberate, not just cheap: regenerating
+  the pipeline/baseline text on each check would mix the system-under-test's
+  own non-determinism into a test specifically designed to isolate the
+  judge's, and the two sources of variance would be impossible to tell
+  apart in the result.
+- `run_judge_reliability_check()`: calls the judge N times on the identical
+  fixed pair via both `judge_output()` and `judge_pairwise()`, reports the
+  min/max/range of absolute scores per dimension per method, and the vote
+  distribution of blinded winners per dimension.
+
+**The real result (N=5, `scenario-b-high-tech`, Haiku judge), stated
+plainly:** absolute scoring is fairly stable. Pipeline scored 5/5/5/5 on
+4 of 5 calls and 4/4/4/4 uniformly lower on the fifth — one harsher call
+across the board, not scattered per-dimension noise. Baseline scored
+5/5/5/5 on all 5 calls, zero variance.
+
+**Blinded pairwise verdicts are markedly less stable, and one dimension
+has a real problem.** Completeness (4/5 pipeline, 1 flip) and
+actionability (4/5 baseline, 1 flip) show a genuine, if imperfect,
+majority. SAP grounding is weaker: baseline wins 3/5, with 2/5 flipping
+away from it. **Accuracy has no stable majority at all** — the five
+identical calls voted pipeline, pipeline, baseline, tie, baseline: a
+literal 2-2-1 split. Asked to grade the exact same accuracy comparison
+five times, the judge did not converge on an answer.
+
+**A bug found in this new code itself, before it was trusted.** The
+first version used `statistics.mode()` to compute a "majority verdict."
+`mode()` does not raise or flag a tie among equally-frequent values — it
+silently returns whichever one appears first in the input list. Against
+accuracy's real 2-2-1 split, this returned `"pipeline"` (the first vote
+in the list) as "the majority" and would have reported "3 of 5 flipped
+from the majority" — technically arithmetically true, but a misleading
+frame for a result that has no majority at all. Caught by reading the
+raw vote list before trusting the summary line, the same discipline
+every other bug in this file was caught with. Fixed: vote counts are now
+computed via `Counter`, a strict-plurality check (`len(leaders) == 1`)
+determines whether a stable majority exists at all, and the full vote
+distribution (`vote_counts`) is always reported alongside — never a
+single number standing in for a distribution that might not have a
+single most-common value.
+
+**What this means for every comparison already on file, stated
+honestly.** #9 through #11 built their findings from *independent* judge
+calls — different runs, never the identical input graded twice — so
+nothing here invalidates them; averaging across independent samples is
+exactly the right response to per-call noise, and that's what the
+aggregate pairwise counts in #11 already do. What this DOES mean: a
+*single* pairwise verdict, especially on accuracy, carries real,
+now-measured judge noise on top of whatever true quality difference
+exists between pipeline and baseline. If asked in an interview "how much
+do you trust one individual pairwise call," the honest answer is now a
+number, not a shrug: on this fixture and this judge, roughly 1-in-5
+identical calls flip on three of four dimensions, and the fourth
+dimension doesn't reliably converge at all.
+
+**What this does NOT close, stated plainly.** This is one fixture pair,
+one scenario, one judge model, N=5. It does not tell you whether Opus
+(the judge used in #11's headline n=3 result) is more or less reliable
+than Haiku, whether a different scenario would show the same
+per-dimension pattern, or whether accuracy's instability here is a
+property of this judge model generally or an artifact of this specific
+pair being genuinely close in quality (both outputs scored near-perfect
+on the absolute scale, which plausibly makes a close pairwise call
+noisier than a lopsided one — a real hypothesis, not a proven one, since
+there is only one fixture pair to check it against). A second fixture
+pair, ideally one with a clearer quality gap between methods, would be
+the natural next check — not built here, named here.

@@ -1,0 +1,186 @@
+{
+  "n_calls": 5,
+  "fixture_scenario": "scenario-b-high-tech",
+  "judge_model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "absolute_scoring": {
+    "pipeline": {
+      "completeness": {
+        "n": 5,
+        "min": 4,
+        "max": 5,
+        "range": 1,
+        "values": [
+          5,
+          5,
+          4,
+          5,
+          5
+        ]
+      },
+      "accuracy": {
+        "n": 5,
+        "min": 4,
+        "max": 5,
+        "range": 1,
+        "values": [
+          5,
+          5,
+          4,
+          5,
+          5
+        ]
+      },
+      "actionability": {
+        "n": 5,
+        "min": 4,
+        "max": 5,
+        "range": 1,
+        "values": [
+          5,
+          5,
+          4,
+          5,
+          5
+        ]
+      },
+      "sap_grounding": {
+        "n": 5,
+        "min": 4,
+        "max": 5,
+        "range": 1,
+        "values": [
+          5,
+          5,
+          4,
+          5,
+          5
+        ]
+      }
+    },
+    "baseline": {
+      "completeness": {
+        "n": 5,
+        "min": 5,
+        "max": 5,
+        "range": 0,
+        "values": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      "accuracy": {
+        "n": 5,
+        "min": 5,
+        "max": 5,
+        "range": 0,
+        "values": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      "actionability": {
+        "n": 5,
+        "min": 5,
+        "max": 5,
+        "range": 0,
+        "values": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      "sap_grounding": {
+        "n": 5,
+        "min": 5,
+        "max": 5,
+        "range": 0,
+        "values": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      }
+    }
+  },
+  "blinded_pairwise": {
+    "completeness": {
+      "n": 5,
+      "majority_verdict": "pipeline",
+      "flipped": 1,
+      "winners": [
+        "pipeline",
+        "pipeline",
+        "baseline",
+        "pipeline",
+        "pipeline"
+      ],
+      "vote_counts": {
+        "pipeline": 4,
+        "baseline": 1
+      },
+      "has_stable_majority": true
+    },
+    "accuracy": {
+      "n": 5,
+      "majority_verdict": null,
+      "flipped": null,
+      "winners": [
+        "pipeline",
+        "pipeline",
+        "baseline",
+        "tie",
+        "baseline"
+      ],
+      "vote_counts": {
+        "pipeline": 2,
+        "baseline": 2,
+        "tie": 1
+      },
+      "has_stable_majority": false
+    },
+    "actionability": {
+      "n": 5,
+      "majority_verdict": "baseline",
+      "flipped": 1,
+      "winners": [
+        "baseline",
+        "pipeline",
+        "baseline",
+        "baseline",
+        "baseline"
+      ],
+      "vote_counts": {
+        "baseline": 4,
+        "pipeline": 1
+      },
+      "has_stable_majority": true
+    },
+    "sap_grounding": {
+      "n": 5,
+      "majority_verdict": "baseline",
+      "flipped": 2,
+      "winners": [
+        "baseline",
+        "pipeline",
+        "baseline",
+        "pipeline",
+        "baseline"
+      ],
+      "vote_counts": {
+        "baseline": 3,
+        "pipeline": 2
+      },
+      "has_stable_majority": true
+    }
+  }
+}

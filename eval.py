@@ -43,6 +43,7 @@ import re
 import statistics
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -1004,6 +1005,170 @@ def write_results(
     print(f"Report:  {RESULTS_MD}")
 
 
+# ── Judge test-retest reliability check (Step 2, interview-prep rigor pass) ──
+
+# Opt-in diagnostic, not part of the normal per-run comparison -- every
+# result this harness reports (#8-#11) implicitly assumes the judge would
+# score the identical input the same way twice. That assumption was never
+# actually tested until this mode existed.
+FIXTURES_DIR = EVALS_DIR / "fixtures"
+RELIABILITY_PIPELINE_FIXTURE = FIXTURES_DIR / "reliability_pipeline.txt"
+RELIABILITY_BASELINE_FIXTURE = FIXTURES_DIR / "reliability_baseline.txt"
+RELIABILITY_FIXTURE_SCENARIO = "scenario-b-high-tech"
+
+
+def _load_or_create_reliability_fixture(client) -> tuple[str, str]:
+    """Return (pipeline_text, baseline_text) for the judge-reliability
+    check -- a FIXED, real pair, reused byte-identically on every
+    invocation once it exists.
+
+    First invocation only: generates one real pipeline run and one real
+    baseline run against RELIABILITY_FIXTURE_SCENARIO and saves both under
+    evals/fixtures/. This one-time generation is unavoidable -- baseline
+    output has never been persisted anywhere else in this harness (see
+    #10/#11: run_baseline_for_eval()'s text only ever existed in memory
+    during a normal eval run, which is why recovering it after the fact
+    needed a fresh call there too) -- but it happens once, not on every
+    reliability check.
+
+    Every subsequent invocation makes ZERO system-under-test calls and
+    loads the saved files instead. This is deliberate, not just cheap:
+    the whole point of this check is to isolate the JUDGE's own
+    variance. Regenerating the pipeline/baseline text on each invocation
+    would mix the system-under-test's own non-determinism into a test
+    specifically designed to measure the judge's, and the two sources of
+    variance would be impossible to tell apart in the result.
+    """
+    FIXTURES_DIR.mkdir(exist_ok=True)
+    if RELIABILITY_PIPELINE_FIXTURE.exists() and RELIABILITY_BASELINE_FIXTURE.exists():
+        return (
+            RELIABILITY_PIPELINE_FIXTURE.read_text(),
+            RELIABILITY_BASELINE_FIXTURE.read_text(),
+        )
+
+    print(
+        f"No reliability fixture on disk -- generating ONE real pipeline + baseline "
+        f"pair against {RELIABILITY_FIXTURE_SCENARIO} and saving to {FIXTURES_DIR}/ "
+        f"for permanent reuse (this happens once, not on every reliability check)."
+    )
+    scenarios = {s["id"]: s for s in discover_scenarios()}
+    scenario = scenarios[RELIABILITY_FIXTURE_SCENARIO]
+
+    pipeline_result = run_pipeline_for_eval(client, scenario["input_text"])
+    pipeline_text = "\n\n---\n\n".join(
+        f"## Skill {k} Output\n\n{v}" for k, v in sorted(pipeline_result["outputs"].items())
+    )
+    baseline_result = run_baseline_for_eval(client, scenario["input_text"])
+    baseline_text = baseline_result["outputs"]["combined"]
+
+    RELIABILITY_PIPELINE_FIXTURE.write_text(pipeline_text)
+    RELIABILITY_BASELINE_FIXTURE.write_text(baseline_text)
+    print(f"Fixture saved. Future --judge-reliability-check runs will reuse it without regenerating.")
+    return pipeline_text, baseline_text
+
+
+def run_judge_reliability_check(client, n: int = 5) -> dict:
+    """Judge test-retest reliability: call the judge N times on the exact
+    SAME (pipeline, baseline) pair, using both the absolute-scoring
+    prompt and the blinded pairwise prompt, and report how much the
+    judge's own verdict moves on input that has not changed at all. A
+    judge that scores identical input differently, or flips its blinded
+    winner across repeated calls, is a real caveat on every single-run
+    number this harness has ever reported (#8-#11) -- this makes that
+    caveat measured, not assumed away.
+    """
+    pipeline_text, baseline_text = _load_or_create_reliability_fixture(client)
+
+    print(f"\nRunning judge {n} times on an identical (pipeline, baseline) pair...")
+
+    absolute_pipeline_scores, absolute_baseline_scores, pairwise_verdicts = [], [], []
+    for i in range(n):
+        print(f"  Call {i + 1}/{n}: absolute (pipeline)...", end=" ", flush=True)
+        absolute_pipeline_scores.append(judge_output(client, RELIABILITY_FIXTURE_SCENARIO, pipeline_text))
+        print("absolute (baseline)...", end=" ", flush=True)
+        absolute_baseline_scores.append(judge_output(client, RELIABILITY_FIXTURE_SCENARIO, baseline_text))
+        print("pairwise...", end=" ", flush=True)
+        pairwise_verdicts.append(judge_pairwise(client, RELIABILITY_FIXTURE_SCENARIO, pipeline_text, baseline_text))
+        print("done")
+
+    def _spread(score_list: list[dict]) -> dict:
+        out = {}
+        for d in DIMENSIONS:
+            vals = [s.get(d, {}).get("score") for s in score_list if "error" not in s]
+            vals = [v for v in vals if v is not None]
+            if not vals:
+                out[d] = {"n": 0, "note": "all calls errored"}
+                continue
+            out[d] = {"n": len(vals), "min": min(vals), "max": max(vals), "range": max(vals) - min(vals), "values": vals}
+        return out
+
+    pipeline_spread = _spread(absolute_pipeline_scores)
+    baseline_spread = _spread(absolute_baseline_scores)
+
+    pairwise_flip = {}
+    for d in DIMENSIONS:
+        winners = [pw.get("dimensions", {}).get(d, {}).get("winner") for pw in pairwise_verdicts if "error" not in pw]
+        winners = [w for w in winners if w]
+        if not winners:
+            pairwise_flip[d] = {"n": 0, "note": "all calls errored"}
+            continue
+        # Deliberately NOT statistics.mode(): on a genuine tie for
+        # most-common (e.g. 2 pipeline / 2 baseline / 1 tie), mode()
+        # silently picks whichever value happened to appear first in the
+        # list and reports it as "the majority" -- which would then
+        # mislabel a dead-even split as "2 of 5 disagreed with the
+        # majority" when there IS no majority. Counter.most_common()
+        # exposes the actual vote distribution, and a real, first-seen
+        # instance of exactly this (accuracy, 2026-08-26 fixture run:
+        # pipeline/pipeline/baseline/tie/baseline) is why this got fixed
+        # before being trusted rather than shipped with the misleading
+        # framing -- see DECISIONS.md #13.
+        vote_counts = dict(Counter(winners).most_common())
+        top_count = max(vote_counts.values())
+        leaders = [v for v, c in vote_counts.items() if c == top_count]
+        has_stable_majority = len(leaders) == 1
+        majority = leaders[0] if has_stable_majority else None
+        flipped = sum(1 for w in winners if w != majority) if has_stable_majority else None
+        pairwise_flip[d] = {
+            "n": len(winners),
+            "vote_counts": vote_counts,
+            "has_stable_majority": has_stable_majority,
+            "majority_verdict": majority,
+            "flipped": flipped,
+            "winners": winners,
+        }
+
+    result = {
+        "n_calls": n,
+        "fixture_scenario": RELIABILITY_FIXTURE_SCENARIO,
+        "judge_model": JUDGE_MODEL,
+        "absolute_scoring": {"pipeline": pipeline_spread, "baseline": baseline_spread},
+        "blinded_pairwise": pairwise_flip,
+    }
+
+    print("\n--- Judge Reliability Check: Summary ---")
+    for method, spread in (("pipeline", pipeline_spread), ("baseline", baseline_spread)):
+        for d, s in spread.items():
+            if s.get("n", 0) == 0:
+                print(f"Judge scored identical {method} output on '{d}': all {n} calls errored.")
+                continue
+            print(f"Judge scored identical {method} output {s['n']} times on '{d}'; scores ranged from {s['min']} to {s['max']}.")
+    for d, f in pairwise_flip.items():
+        if f.get("n", 0) == 0:
+            print(f"Blinded verdict on '{d}': all {n} calls errored.")
+        elif f["has_stable_majority"]:
+            print(f"Blinded verdict on '{d}' flipped {f['flipped']}/{f['n']} times on an identical pair (majority: {f['majority_verdict']}, vote counts: {f['vote_counts']}).")
+        else:
+            print(f"Blinded verdict on '{d}': NO stable majority across {f['n']} identical calls — vote counts: {f['vote_counts']}. The judge is not converging on one answer for identical input on this dimension.")
+
+    reliability_path = EVALS_DIR / "reliability_check.json"
+    with open(reliability_path, "w") as fh:
+        json.dump(result, fh, indent=2)
+    print(f"\nReliability check results: {reliability_path}")
+
+    return result
+
+
 # ── Main ───────────────────────────────────────────────────
 
 def main():
@@ -1013,6 +1178,15 @@ def main():
     parser.add_argument("--baseline-only", action="store_true", help="Run baseline only")
     parser.add_argument("--pipeline-only", action="store_true", help="Run pipeline only")
     parser.add_argument("--skip-adversarial", action="store_true", help="Skip adversarial cases")
+    parser.add_argument(
+        "--judge-reliability-check", action="store_true",
+        help="Opt-in diagnostic: call the judge N times on an identical (pipeline, baseline) "
+             "pair and report score/verdict spread. Does not run the normal comparison.",
+    )
+    parser.add_argument(
+        "--reliability-n", type=int, default=5,
+        help="Number of identical judge calls for --judge-reliability-check (default: 5)",
+    )
     args = parser.parse_args()
 
     if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("AWS_ACCESS_KEY_ID"):
@@ -1024,6 +1198,11 @@ def main():
         if _USE_BEDROCK
         else anthropic.Anthropic()
     )
+
+    if args.judge_reliability_check:
+        run_judge_reliability_check(client, n=args.reliability_n)
+        return
+
     scenarios = discover_scenarios()
 
     if args.scenario:
