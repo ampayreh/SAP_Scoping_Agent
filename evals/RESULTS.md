@@ -168,3 +168,31 @@ it does mean a *single* pairwise verdict, especially on accuracy, carries
 real judge noise on top of whatever true quality difference exists. This
 is not fixed by this step; it is measured by it. See DECISIONS.md #13 for
 the full honest account of what this does and does not close.
+
+**2026-08-26 — Step 3 of 4, interview-rigor pass: a preventive guardrail,
+not another after-the-fact discovery.** Every bug in this file so far —
+including the Skill 01 `max_tokens: 8192` vs 16384 bug (#10) — was caught
+by re-reading output after a run, never by anything the harness itself
+checked before running. Added `validate_skill_config()` in
+`orchestrator.py`, called once at the top of `run_pipeline()`, before any
+API call: flags any `SKILLS` entry whose `max_tokens` is at or below 50%
+of the group's maximum, naming the skill and the outlier value.
+**Design decision, chosen deliberately: it FAILS (raises `ValueError`),
+not just warns.** A printed warning is exactly what would NOT have caught
+the real bug — that bug ran silently truncated for an unknown number of
+runs with no warning anywhere. Failing at startup costs nothing (zero API
+spend before the check runs) and forces a decision instead of a
+scroll-past-able line; an escape hatch (`ALLOW_CONFIG_OUTLIERS=1`) exists
+for a genuinely intentional difference, so it's a locked door with a key,
+not a wall.
+
+**A bug in this guardrail itself, found before being trusted:** the first
+version used a strict `<` comparison (`val < 0.5 * max`), which — because
+the real historical bug sits EXACTLY on the 0.5 ratio boundary
+(8192 / 16384 = 0.5 precisely) — would have silently let the one concrete
+case this check exists to catch pass through uncaught. Found by testing
+the function against the exact historical values before trusting it, not
+by inspection. Fixed to `<=`. 8 test cases run before commit, including
+the exact bug shape, the boundary itself, one step past the boundary, a
+single-skill config, a config with a non-numeric field value, and the
+escape hatch — all pass. See `DECISIONS.md` #14.

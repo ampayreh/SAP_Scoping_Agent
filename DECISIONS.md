@@ -819,3 +819,79 @@ noisier than a lopsided one — a real hypothesis, not a proven one, since
 there is only one fixture pair to check it against). A second fixture
 pair, ideally one with a clearer quality gap between methods, would be
 the natural next check — not built here, named here.
+
+
+---
+
+## 14. Interview-prep rigor pass, Step 3 of 4: a preventive guardrail,
+    not another after-the-fact discovery
+
+**Context.** Every single bug documented in this file — the Skill 01
+`max_tokens` mismatch (#10), the two adversarial-eval false positives
+(#10, #11), the judge budget/retry issues (#10, #11) — was caught the
+same way: by re-reading output, or a raw file, or a log, after a run had
+already happened. Nothing in the harness itself had ever caught a
+problem before spending an API call on it. Asked "what would have caught
+the original Skill 01 bug automatically," the honest answer before this
+step was "nothing — it took someone reading six runs' worth of raw JSON
+by hand."
+
+**What was added, in `orchestrator.py`:**
+
+`validate_skill_config(skills, field="max_tokens", outlier_ratio=0.5)`,
+called once at the very top of `run_pipeline()`, before the API client is
+even constructed. Flags any `SKILLS` entry whose `field` value is at or
+below `outlier_ratio` of the group's maximum, and reports every outlier
+found — skill ID, name, the value, the group max, the ratio — before a
+single token is spent. Deliberately generic: `field` is a parameter, not
+hardcoded to `max_tokens`, so a future per-skill numeric config value
+(a timeout, a retry count, anything comparable across the four skills)
+reuses this same function rather than needing a second copy.
+
+**Design decision, made explicitly rather than defaulted into: fail, not
+warn.** The task description offered both options. Chosen to fail
+(`raise ValueError`) because a warning is precisely the failure mode
+already demonstrated not to work — the real Skill 01 bug produced
+silently wrong output on 6 consecutive runs with nothing in the pipeline
+ever printing so much as a warning, because nothing was checking. This
+guardrail runs before any API call, so failing costs nothing (no wasted
+spend, no wasted wall-clock) and converts a scroll-past-able line into a
+decision that has to be made. An escape hatch,
+`ALLOW_CONFIG_OUTLIERS=1`, downgrades the failure to a printed warning
+for a case where the difference is genuinely intentional — the guardrail
+is a locked door with a key, not a wall with no way through.
+
+**A bug in the guardrail itself, found before it was trusted.** The
+first implementation compared with strict `<`
+(`val < outlier_ratio * group_max`). The real bug this check exists to
+catch is `max_tokens: 8192` against siblings at `16384` — and
+`8192 / 16384` is exactly `0.5`, sitting precisely on the boundary a
+strict `<` comparison excludes. Tested against the literal historical
+values before trusting the function (not just reasoned about abstractly)
+and the test caught it immediately: the exact bug this guardrail was
+built to catch would have passed through uncaught by its own first
+version. Fixed to `<=`, with the reasoning for that specific operator
+choice written into a code comment so a future edit doesn't quietly flip
+it back.
+
+**Full test coverage run before commit** (all local, zero API cost — this
+step needs no model calls): the current real `SKILLS` config (uniform
+16384s) passes silently; the exact historical bug shape raises and names
+the skill; the escape hatch downgrades to a warning; a single-skill list
+has nothing to compare against and doesn't crash; a config with a
+non-numeric field value doesn't crash; the exact boundary value (8192 vs
+16384) raises; one step past the boundary (8193 vs 16384) does not raise.
+
+**What this does NOT close, stated plainly.** This catches one shape of
+config problem — a per-skill numeric value sitting far below its
+siblings — and only for whatever field is passed to it (only
+`max_tokens` is wired into `run_pipeline()` today). It does not validate
+prompt content, tool wiring, model IDs, or any other class of
+misconfiguration; it is a first guardrail, scoped exactly as small as the
+task asked for, not a general config-linting framework. The
+`outlier_ratio=0.5` default is a deliberate, literal match to the one
+real bug on file, not a value derived from any broader analysis of what
+ratio should generally be considered suspicious — a future, different
+kind of outlier (say, a value 30% below its siblings rather than 50%)
+would not be caught by the current default, and that's a real, named
+limitation rather than an implied one.

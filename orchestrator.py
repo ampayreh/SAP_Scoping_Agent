@@ -69,6 +69,78 @@ SKILLS = [
 ]
 
 
+# ── Config validation (Step 3, interview-prep rigor pass) ─────
+
+def validate_skill_config(skills: list[dict], field: str = "max_tokens", outlier_ratio: float = 0.5) -> None:
+    """Startup guardrail: flag any SKILLS entry whose `field` value sits
+    far outside its siblings' values, BEFORE any API call is made. This
+    is the check that would have caught the real, shipped Skill 01
+    max_tokens=8192-vs-16384 bug (see DECISIONS.md #10) automatically --
+    instead of it running silently truncated on every one of 6 runs
+    until someone happened to read a raw output file by hand.
+
+    DESIGN DECISION, stated here rather than left implicit: this FAILS
+    (raises), it does not just print a warning and continue. A printed
+    warning is easy to miss in scrolling terminal output -- that is, in
+    fact, exactly what already happened once with the real bug this
+    guardrail targets: the truncation produced silently wrong output on
+    every single run for an unknown period, and nothing in the harness
+    itself ever surfaced it. This check runs at startup, before any API
+    call, so failing costs nothing (zero wasted spend, zero wasted time)
+    and forces a deliberate decision instead of a scroll-past-able line.
+    An escape hatch exists (env var ALLOW_CONFIG_OUTLIERS=1) for a
+    genuinely intentional per-skill difference, so this is a locked door
+    with a key, not a wall -- but the default is fail-closed.
+
+    field: which per-skill config key to check. Only "max_tokens" is
+    wired into run_pipeline() today, but the parameter and the comparison
+    logic below are generic (any numeric per-skill value works) so a
+    future field doesn't need a second copy of this function.
+    outlier_ratio: an entry's value is flagged if it is at or below
+    outlier_ratio * max(all values in the group). 0.5 is a deliberate,
+    literal match to the shape of the real bug this guardrail exists to
+    catch (8192 is exactly half of 16384) -- not a value derived from any
+    independent statistical reasoning, an intentional match to the known
+    failure case.
+    """
+    entries = [(s["id"], s["name"], s.get(field)) for s in skills]
+    numeric = [(sid, name, val) for sid, name, val in entries if isinstance(val, (int, float))]
+    if len(numeric) < 2:
+        return  # nothing to compare an outlier against
+
+    group_max = max(val for _sid, _name, val in numeric)
+    # <= not <: the real bug this guardrail targets (8192 vs 16384) sits
+    # EXACTLY on the ratio boundary (8192 / 16384 == 0.5). A strict "<"
+    # comparison would silently exclude the one concrete case this check
+    # exists to catch -- caught by testing against that exact historical
+    # value before trusting this function, not by reasoning about it.
+    outliers = [(sid, name, val) for sid, name, val in numeric if val <= outlier_ratio * group_max]
+    if not outliers:
+        return
+
+    lines = [
+        f"CONFIG VALIDATION FAILED: {len(outliers)} of {len(numeric)} skill(s) have "
+        f"'{field}' at or below {outlier_ratio:.0%} of the group max ({group_max}), "
+        f"caught BEFORE any API call was made:",
+    ]
+    for sid, name, val in outliers:
+        lines.append(f"  - Skill {sid} ({name}): {field}={val}  (group max={group_max}, ratio={val / group_max:.2f})")
+    lines.append(
+        "This is the exact shape of a real bug that shipped before: Skill 01 at "
+        "max_tokens=8192 while Skills 02-04 used 16384 (DECISIONS.md #10), which "
+        "silently truncated output on every run until caught by hand. Fix the "
+        "outlier, or set ALLOW_CONFIG_OUTLIERS=1 if this difference is genuinely "
+        "intentional."
+    )
+    message = "\n".join(lines)
+
+    if os.environ.get("ALLOW_CONFIG_OUTLIERS") == "1":
+        print(f"WARNING (ALLOW_CONFIG_OUTLIERS=1 set, proceeding anyway):\n{message}", file=sys.stderr)
+        return
+
+    raise ValueError(message)
+
+
 # ── Scope Item Lookup Tool ─────────────────────────────────
 
 # A curated subset of SAP S/4HANA scope items relevant to common
@@ -330,6 +402,13 @@ def run_pipeline(
     skip_gate: bool = False,
 ) -> PipelineState:
     """Execute the scoping pipeline end-to-end or from a resume point."""
+
+    # Guardrail: catch a config outlier (e.g. the real, previously-shipped
+    # Skill 01 max_tokens=8192-vs-16384 bug -- DECISIONS.md #10) before a
+    # single API call is made, rather than after someone happens to
+    # notice truncated output. See validate_skill_config()'s docstring
+    # for why this fails rather than warns.
+    validate_skill_config(SKILLS)
 
     client = (
         anthropic.AnthropicBedrock(aws_region=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
