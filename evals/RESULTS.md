@@ -354,3 +354,56 @@ which is what it was run to decide — it is not a claim that 8 is optimal.**
 **Decision: keep `_MAX_TOOL_ROUNDS = 8` for the full rerun.** The delta
 across a full n=3 matrix is roughly $9 (~$15 vs ~$24), which is not worth
 knowingly running a configuration the evidence says is worse.
+
+---
+
+## 2026-08-26 — Full rerun ATTEMPTED and BLOCKED: daily token quota
+
+**The retraction above stands unresolved. No new numbers were produced.**
+The full n=3 rerun decided on in #16 was attempted twice and blocked both
+times by an account-level constraint, not a code defect.
+
+**The blocker:** `429 - Too many tokens per day`. Sonnet 4.6's per-day
+token quota on this account is **10,800,000** and is **not adjustable**
+(Service Quotas `L-B29C9321`, doubled to `L-248E47B7` for the `us.`
+cross-region profile). Only per-minute limits can be raised, and
+per-minute was never the binding constraint.
+
+**Measured, not guessed:** `state/*-metrics.json` shows **9,162,662 Sonnet
+tokens consumed across 16 pipeline runs that day — 84.8% of the cap** —
+before baselines. The cap-calibration probe, the Step 4 verification runs,
+and the first rerun attempt had already spent the day's budget. The 429 was
+arithmetic.
+
+**Feasibility, now quantified:** one cap-8 pipeline run = 995,230 tokens; a
+full n=3 matrix plus baselines ≈ **6.5M tokens, ~60% of a fresh day's
+allowance**. Feasible with ~40% headroom for a retry — but only on a day
+not already spent on other work. Judge calls draw on Haiku's separate 27M
+budget and are not a constraint.
+
+**Three fixes came out of the two failed attempts** (all tested, none
+producing eval numbers):
+
+1. **Rate-limit backoff separated from generic API-error backoff.** They
+   had shared one schedule, so a throttled call waited 2s/4s/8s — 14
+   seconds total — and gave up. Rate limits now get `[30, 60, 90, 120, 150]`
+   (450s) and deliberately do not consume the general retry budget.
+2. **Fast-fail on daily quota.** Fix #1 made this case *worse*: it spent 7.5
+   minutes retrying an error the first response had already made certain.
+   The harness now inspects the 429 body and raises in seconds, printing the
+   quota-check command. Fails safe — anything not positively identified as
+   per-day is still retried as per-minute.
+3. **Checkpointing.** Attempt 1 lost all spend because results only reached
+   disk at the very end. `evals/results.checkpoint.json` is now written
+   after each completed iteration, on a **separate path** from
+   `results.json` so a partial run can never overwrite a committed dataset.
+
+**To confirm quota headroom before retrying:**
+
+```
+aws service-quotas list-service-quotas --service-code bedrock --region us-east-1
+```
+
+Do **not** pass `--no-paginate` — it silently returns only the first page
+(6 quotas instead of 1,179), which briefly produced a confidently wrong
+"no matching quotas" reading during this investigation.

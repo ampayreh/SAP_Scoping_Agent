@@ -1098,3 +1098,108 @@ one would have known the question went unasked. The probe cost $5.68 and
 returned the opposite of the expected answer. That is the argument for
 running it, and it is the reason the value in `_MAX_TOOL_ROUNDS` is now
 defensible under questioning rather than merely documented.
+
+
+---
+
+## 17. The full rerun didn't happen: a daily token quota, and two retry
+    bugs found trying to survive it
+
+**What was attempted.** #16 concluded with a decision to run the full n=3
+matrix at cap 8 (~$24, ~2 hours) to replace the numbers retracted in #15.
+It was attempted twice. Neither completed, and the reason is worth
+recording precisely, because the first diagnosis was wrong.
+
+**Attempt 1 — died at iteration 2 of 6, ~$4 spent.** `RuntimeError: Max
+retries exceeded`, triggered by 429s on Skill 03 (the largest request in
+the pipeline: ~530k input tokens at cap 8). **Root cause: rate limits and
+transient API errors shared one backoff schedule.** `call_claude_with_retry`
+reused `2 ** (attempt + 1)` with `max_retries=3`, so a throttled call waited
+2s, 4s, 8s -- **14 seconds total** -- and gave up. Nothing that resets on a
+window measured in minutes could ever be outlasted by that.
+
+Fixed: rate limits got a dedicated schedule (`_RATE_LIMIT_BACKOFF_S =
+[30, 60, 90, 120, 150]`, 450s total) that deliberately does **not** consume
+the general retry budget -- being throttled is not evidence a request is
+bad, so it should not spend the allowance reserved for genuinely failing
+calls, and a throttled request is rejected before tokens are billed, so
+waiting costs time but not money. The `for attempt in range(...)` loop
+became a `while` so rate-limit retries genuinely don't advance `attempt`.
+Verified with three mocked tests before relaunching.
+
+**Attempt 2 — died at iteration 1 of 6, and revealed the first diagnosis
+was incomplete.** The new backoff worked exactly as designed: nine
+rate-limit events, full 450s schedule consumed, orderly failure. But the
+error text was:
+
+> `429 - Too many tokens per day, please wait before trying again.`
+
+**A per-DAY quota, not per-minute throttling.** No in-run backoff can
+outlast a daily boundary. The 450s schedule was correct engineering aimed
+at the wrong constraint.
+
+**The actual numbers, confirmed against the account rather than assumed.**
+Queried via `aws service-quotas list-service-quotas --service-code bedrock`
+(with a real gotcha: `--no-paginate` silently returns only the FIRST page --
+6 quotas instead of 1,179 -- which briefly produced a confidently wrong
+"no matching quotas found" reading):
+
+| Model | Per-day tokens | Per-minute tokens | Day adjustable? |
+|---|---|---|---|
+| Sonnet 4.6 (system under test) | **10,800,000** | 6,000,000 | **No** |
+| Haiku 4.5 (judge) | 27,000,000 | 5,000,000 | **No** |
+
+Sonnet's per-day quota is `L-B29C9321` (5.4M base, explicitly "doubled for
+cross-region calls" → `L-248E47B7` at 10.8M, which is what the `us.`
+inference profile draws on). **It is not adjustable**, so there is no
+request-an-increase path -- only the per-minute limits can be raised, and
+per-minute was never the binding constraint.
+
+**Measured consumption on the day of the attempts: 9,162,662 Sonnet tokens
+across 16 pipeline runs (84.8% of the 10.8M cap) from `state/*-metrics.json`
+alone**, before baselines. The probe (#16), the Step 4 verification runs
+(#15), and attempt 1 had collectively spent the day's allowance before the
+real run started. The 429 was arithmetic, not bad luck.
+
+**Second fix: fail fast on a daily quota.** The new backoff made things
+*worse* in this specific case -- it spent 7.5 minutes retrying an error the
+very first response had already made certain. `_is_daily_quota_error()` now
+inspects the 429 body (per-day and per-minute are indistinguishable by
+exception *type*; both are `anthropic.RateLimitError`) and raises
+immediately with the quota-check command in the message. **Deliberately
+fails safe:** anything not positively marked as per-day is treated as
+per-minute and retried, because misreading transient throttling as fatal
+would abort a run that would have recovered -- strictly worse than spending
+some backoff before failing. Tested against the literal observed message
+text, a per-minute message, and a deliberately ambiguous one.
+
+**Third fix, unrelated to quotas but exposed by the same failure:
+checkpointing.** Attempt 1 lost every dollar it had spent because results
+only reached disk in `write_results()` at the very end. A ~2-hour, ~$25 job
+with no partial-progress protection is a design flaw independent of what
+killed it. `eval.py` now writes `evals/results.checkpoint.json` after each
+completed iteration -- a **separate path** from `RESULTS_JSON`, so a partial
+run can never overwrite or be mistaken for a complete committed dataset
+(the exact hazard already recorded in #15), with the write wrapped so
+checkpointing can never kill the run it exists to protect.
+
+**Feasibility of the rerun, now that the real ceiling is known.** One cap-8
+pipeline run measures 995,230 tokens. Six runs plus baselines ≈ **6.5M
+tokens, about 60% of a fresh day's Sonnet allowance** -- comfortably
+feasible, with ~40% headroom for a retry, but only on a day not already
+spent. Judge calls draw on Haiku's separate 27M budget and are not a
+constraint.
+
+**Status: the retraction in #15 stands unresolved.** The pipeline numbers
+remain retracted and uncitable. What changed here is that the blocker is now
+*understood and quantified* rather than mysterious: it is a hard,
+non-adjustable daily ceiling, the workload's footprint against it is
+measured, and the harness will now fail in seconds rather than minutes when
+it hits one -- with partial work preserved rather than discarded.
+
+**The honest framing for anyone reading this later:** two attempts, ~$4
+spent, no numbers produced. The engineering that came out of it is real --
+correct rate-limit backoff, daily-quota fast-fail, checkpointing, and a
+measured understanding of the account's actual ceiling -- but it is not the
+deliverable that was asked for, and calling it one would be dressing up a
+miss.

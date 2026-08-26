@@ -53,6 +53,10 @@ BENCHMARKS_DIR = Path(__file__).parent / "benchmarks"
 EVALS_DIR = Path(__file__).parent / "evals"
 RESULTS_JSON = EVALS_DIR / "results.json"
 RESULTS_MD = EVALS_DIR / "RESULTS.md"
+# Partial-progress checkpoint, written after each completed iteration.
+# Deliberately a DIFFERENT path from RESULTS_JSON so an interrupted run can
+# never overwrite or be confused with a complete, committed dataset.
+CHECKPOINT_JSON = EVALS_DIR / "results.checkpoint.json"
 
 # Use Bedrock when AWS credentials are present and no direct API key is set.
 _USE_BEDROCK = bool(os.environ.get("AWS_ACCESS_KEY_ID")) and not os.environ.get("ANTHROPIC_API_KEY")
@@ -1281,6 +1285,30 @@ def main():
                 pw["scenario"] = scenario["id"]
                 pw["run"] = run_idx
                 pairwise_results.append(pw)
+
+            # Checkpoint after every completed iteration. A full n=3 matrix
+            # is a ~2-hour, ~$25 job, and one has already been lost outright
+            # to a mid-flight crash at iteration 2 of 6 (a rate-limit
+            # backoff bug -- DECISIONS.md #17): every dollar spent up to that
+            # point was unrecoverable because results only ever landed on
+            # disk at the very end. This writes to a SEPARATE file, never to
+            # RESULTS_JSON, so a partial run can never be mistaken for, or
+            # overwrite, a complete committed dataset.
+            try:
+                CHECKPOINT_JSON.parent.mkdir(exist_ok=True)
+                with open(CHECKPOINT_JSON, "w") as f:
+                    json.dump({
+                        "partial": True,
+                        "completed_iterations": len(pairwise_results),
+                        "model": MODEL_ID,
+                        "judge_model": JUDGE_MODEL,
+                        "results": all_results,
+                        "pairwise": pairwise_results,
+                    }, f, indent=2)
+            except Exception as e:
+                # Checkpointing must never be able to kill the run it exists
+                # to protect.
+                print(f"    (checkpoint write failed, continuing: {e})", file=sys.stderr)
 
     # Adversarial cases
     adversarial_results = []
