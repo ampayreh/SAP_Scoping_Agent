@@ -525,3 +525,120 @@ entry's one limitation) should replace these numbers when it runs, per
 the same standing rule #9 established: whatever it shows, including if
 the pipeline still doesn't beat the baseline, replaces the number here —
 not a rewritten version of this entry.
+
+
+---
+
+## 11. The full n=3 rerun: the pending number from #10, now real —
+    plus one more test bug found and a retry mechanism added
+
+**This is the full rerun #9 and #10 both flagged as pending. It replaces
+their interim numbers, per the standing rule: whatever it shows,
+including if the pipeline still doesn't beat the baseline, replaces the
+number here — not a rewritten version of either entry.** 2 scenarios x 3
+runs, `us.anthropic.claude-sonnet-4-6` system under test,
+`us.anthropic.claude-haiku-4-5-20251001-v1:0` judge (independence
+confirmed), both grading modes, blinded pairwise, adversarial cases.
+
+**The honest result, stated plainly: the pipeline does not beat the
+baseline, on either grading mode.**
+
+- **Absolute scoring shows a dead tie.** Scenario-a: pipeline mean 4.25,
+  baseline mean 4.25 — identical. Scenario-b: pipeline mean 5.0, baseline
+  mean 5.0 — identical. Consistency (computed, not judge-estimated) is
+  also identical between methods per scenario: 2/5 for both methods on
+  scenario-a (real run-to-run variation — scores ranged 3-5 across the 3
+  runs for both), 5/5 for both on scenario-b (perfectly stable at 5,5,5,5
+  regardless of method or run). Absolute scoring cannot tell these two
+  methods apart on this data, at all.
+- **Blinded pairwise — the mechanism built specifically to break that
+  tie — shows baseline clearly preferred.** Across 6 comparisons x 4
+  dimensions (24 judgments): baseline preferred **16**, pipeline
+  preferred **7**, tie **1**. Worst on actionability (baseline 5,
+  pipeline 1) — the dimension most directly about whether a consultant
+  could use the output with less rework. Completeness and SAP grounding
+  both lean baseline (4-2 each); accuracy is closest (3-2, 1 tie).
+- **Cost and latency are unambiguous.** Pipeline averaged $1.88/run
+  against baseline's $0.22 — **8.4x the cost**. Pipeline averaged 563s
+  against baseline's 268s — **2.1x the latency**. Combined with the
+  quality result above: the orchestrated pipeline costs roughly 8x more,
+  runs roughly 2x slower, is tied with the baseline on absolute scoring,
+  and is preferred less often than the baseline in blinded head-to-head
+  comparison. **On these two scenarios, at this sample size, there is no
+  quality basis for the added cost.** This is the honest number, not a
+  hedged one, and it is now the full-sample result, not an interim
+  smaller-n check.
+
+**One more test-design bug found and fixed, same pattern as #10's
+adv-01 fix.** This run's adversarial pass initially failed adv-02
+("refusal-on-non-sap-request") on `must_not_contain: 'creative concept'
+found`. Reproduced and read the full output, not the excerpt: the agent
+gave a clean, correct refusal that explicitly named the categories of
+deliverable it was declining --- *"I won't be able to produce campaign
+plans, creative concepts, or launch strategies here."* That is the
+correct behavior this case wants to see (declining, while explaining
+what it's declining, is good UX), not a fabricated marketing deliverable
+-- a bare substring match can't tell "the agent named this as something
+it refuses" from "the agent produced this." Same root cause as adv-01,
+different case.
+
+Fixed narrowly, mirroring adv-01's fix: `_find_marketing_deliverable()`
+excuses a banned phrase (`"creative concept"`, `"target audience:"`,
+etc.) only when refusal language ("won't", "can't", "declin...", "not
+designed to", "outside what/my", "not the/a right tool") appears in the
+150 characters immediately preceding it. A genuine violation -- the
+agent actually producing a "Target Audience:" section with real content
+and no refusal language anywhere nearby -- is still caught; verified
+with 4 targeted cases (the real false positive excused; a genuine
+violation caught; a refusal naming a *different* banned phrase excused;
+bare deliverable content with no refusal nearby caught) before spending
+any API calls, then live: 32/32 restored.
+
+**A second, different-shaped failure: one absolute-judge call failed to
+parse, unrelated to truncation.** `scenario-b-high-tech` pipeline run 2
+of 3 returned `{"error": "Expecting ',' delimiter..."}` from
+`judge_output()` despite the #10 fix. Investigated before assuming the
+2048-token budget was still insufficient: reconstructed the exact same
+pipeline output from its saved state file and re-invoked the judge
+directly, capturing the raw response this time instead of only the parse
+error. Result: 1,194 output tokens (well under the 2048 cap -- not
+truncated) and a clean, valid, complete JSON response on the very next
+call. This is an occasional, non-deterministic JSON-formatting glitch
+from the judge model, not a systematic budget problem, and needed a
+different fix than #10's.
+
+**Fix: `_call_judge_and_parse()`, a shared retry wrapper used by both
+`judge_output()` and `judge_pairwise()`.** Retries the *whole* API call
+(not just the parse -- re-parsing identical malformed text can't fix it)
+on `json.JSONDecodeError` or a transient `anthropic.APIError`, with the
+same exponential backoff style as `orchestrator.py`'s existing
+`call_claude_with_retry` (`2 ** (attempt+1)` seconds), up to 3 attempts,
+raising the last error if every attempt is exhausted so a genuine,
+persistent failure still surfaces rather than looping forever or hiding
+the failure class. Verified with 3 mocked-client unit tests before
+spending any API calls: recovers cleanly after one bad call and one
+retry; raises (does not silently swallow) after exhausting all retries;
+`judge_output()`'s outer wrapper still correctly turns an exhausted
+retry into `{"error": ...}` for the harness's existing reporting flow.
+The one gap this run produced was then filled live using the new
+retry-enabled path -- succeeded on the first attempt, no retry needed.
+
+**Why this is the right layer for this fix, and #10's token-budget fix
+was the right layer for that one.** Two different failure modes got two
+different fixes: #10's was systematic (every call under a given budget
+with a given model failed the same way, every time) and needed a bigger
+budget; this one is occasional and non-deterministic (the exact same
+request succeeds nearly every time) and needed a retry, not a bigger
+budget -- bumping tokens further would not have prevented an occasional
+malformed delimiter. Matching the fix to the actual failure mode, not
+applying the same fix reflexively to every judge-call problem, is the
+same discipline #7 and #10 already established.
+
+**All twelve absolute-score cells and all six pairwise comparisons in
+`evals/RESULTS.md` are now real data from real API calls -- no
+placeholders, no `{"error": ...}` entries, no interim/smaller-n caveats
+remaining.** This entry is the terminal state of the eval-harness fix
+that began at #8: judge independence, blinding, computed consistency,
+pairwise comparison, two root-caused test-design bugs, a token-budget
+fix, and a retry mechanism, all verified against real committed data
+rather than asserted.

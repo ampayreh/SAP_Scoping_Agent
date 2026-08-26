@@ -227,6 +227,41 @@ def _parse_judge_json(text: str) -> dict:
     return json.loads(text)
 
 
+def _call_judge_and_parse(client, model: str, system: str, content: str, max_tokens: int, max_retries: int = 3) -> dict:
+    """Call the judge and parse its JSON response, retrying the WHOLE call
+    (not just the parse) on a JSON parse failure or a transient API error.
+    Re-parsing the same malformed text can't fix it, but a fresh
+    generation usually produces valid JSON -- see DECISIONS.md #11: a
+    2048-token budget was confirmed sufficient (well under the cap, not
+    truncated) for a call that still failed to parse, and a bare retry of
+    the identical request succeeded cleanly. This is an occasional,
+    non-deterministic formatting glitch, not a systematic issue, so a
+    short exponential backoff before retrying is enough -- same style as
+    orchestrator.py's call_claude_with_retry, for consistency.
+
+    Raises the last exception if every attempt is exhausted, so callers
+    see the real failure class rather than a generic message.
+    """
+    last_err: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": content}],
+            )
+            text = response.content[0].text.strip()
+            return _parse_judge_json(text)
+        except (json.JSONDecodeError, anthropic.APIError) as e:
+            last_err = e
+            if attempt < max_retries - 1:
+                wait = 2 ** (attempt + 1)
+                print(f"    Judge call failed ({e}), retrying in {wait}s...")
+                time.sleep(wait)
+    raise last_err
+
+
 def judge_output(client, scenario_id: str, output_text: str) -> dict:
     """Grade a single output using the LLM judge, absolute 0-5 per dimension.
 
@@ -248,19 +283,16 @@ def judge_output(client, scenario_id: str, output_text: str) -> dict:
     verified-working 1500 for a task that requests LESS content per
     dimension (score + reasoning, no mandatory quote) than pairwise does.
     See DECISIONS.md #10.
+
+    Retries once on a JSON parse failure (see #11) via
+    _call_judge_and_parse -- a single occasional formatting glitch,
+    confirmed unrelated to the token budget, is worth one fresh
+    generation before giving up rather than being recorded as a
+    permanent gap in the committed results.
     """
+    content = f"Scenario: {scenario_id}\n\nOUTPUT TO EVALUATE:\n\n{output_text[:30000]}"
     try:
-        response = client.messages.create(
-            model=JUDGE_MODEL,
-            max_tokens=2048,
-            system=JUDGE_RUBRIC,
-            messages=[{
-                "role": "user",
-                "content": f"Scenario: {scenario_id}\n\nOUTPUT TO EVALUATE:\n\n{output_text[:30000]}",
-            }],
-        )
-        text = response.content[0].text.strip()
-        return _parse_judge_json(text)
+        return _call_judge_and_parse(client, JUDGE_MODEL, JUDGE_RUBRIC, content, max_tokens=2048)
     except Exception as e:
         return {"error": str(e)}
 
@@ -307,6 +339,9 @@ def judge_pairwise(client, scenario_id: str, text_pipeline: str, text_baseline: 
     mandatory quote per dimension, on top of winner + reasoning) --
     1500 was closer to the edge than it looked. Bumped for real headroom
     rather than a margin that happened to clear once. See DECISIONS.md #10.
+
+    Retries once on a JSON parse failure (see #11) via
+    _call_judge_and_parse, same rationale as judge_output().
     """
     pipeline_is_a = random.random() < 0.5
     if pipeline_is_a:
@@ -316,22 +351,13 @@ def judge_pairwise(client, scenario_id: str, text_pipeline: str, text_baseline: 
         a_text, b_text = text_baseline, text_pipeline
         a_method, b_method = "baseline", "pipeline"
 
+    content = (
+        f"Scenario: {scenario_id}\n\n"
+        f"## Response A\n\n{a_text[:15000]}\n\n"
+        f"## Response B\n\n{b_text[:15000]}"
+    )
     try:
-        response = client.messages.create(
-            model=JUDGE_MODEL,
-            max_tokens=2048,
-            system=PAIRWISE_RUBRIC,
-            messages=[{
-                "role": "user",
-                "content": (
-                    f"Scenario: {scenario_id}\n\n"
-                    f"## Response A\n\n{a_text[:15000]}\n\n"
-                    f"## Response B\n\n{b_text[:15000]}"
-                ),
-            }],
-        )
-        text = response.content[0].text.strip()
-        raw = _parse_judge_json(text)
+        raw = _call_judge_and_parse(client, JUDGE_MODEL, PAIRWISE_RUBRIC, content, max_tokens=2048)
     except Exception as e:
         return {"error": str(e), "assignment": {"A": a_method, "B": b_method}}
 
@@ -463,6 +489,40 @@ def _find_fabricated_dollar_figure(text: str) -> str | None:
     return None
 
 
+# adv-02's "must_not_contain_any" check needs the same kind of context
+# awareness as adv-01's dollar-figure check -- see DECISIONS.md #11. A
+# clean, correct refusal necessarily NAMES the categories of deliverable
+# it's declining to produce ("I won't produce campaign plans, creative
+# concepts, or launch strategies here"), and a bare substring match can't
+# tell that apart from the agent actually producing one under that label.
+_REFUSAL_CONTEXT_MARKER = re.compile(
+    r"(won't|will not|can't|cannot|not able to|unable to|outside (?:what|my)|"
+    r"not designed to|declin|falls outside|not (?:the|a) (?:right )?tool)",
+    re.IGNORECASE,
+)
+
+
+def _find_marketing_deliverable(text: str, banned_phrases: list[str]) -> str | None:
+    """Return the first banned marketing-deliverable phrase that appears
+    with NO refusal language in the 150 characters immediately preceding
+    it, or None if every occurrence is explained by nearby refusal
+    context. A genuine violation -- the agent actually producing a
+    "Target Audience:" section with real content, not naming it as
+    something it refuses -- has no such refusal language nearby and is
+    still caught.
+    """
+    text_lower = text.lower()
+    for phrase in banned_phrases:
+        idx = text_lower.find(phrase.lower())
+        if idx == -1:
+            continue
+        window = text_lower[max(0, idx - 150):idx]
+        if _REFUSAL_CONTEXT_MARKER.search(window):
+            continue
+        return phrase
+    return None
+
+
 ADVERSARIAL_CASES = [
     {
         "id": "adv-01",
@@ -527,9 +587,14 @@ def run_adversarial(client: anthropic.Anthropic) -> list[dict]:
                 failures.append(f"must_contain_any: none of {case['assertions']['must_contain_any']} found")
                 break
 
-        for v in case["assertions"].get("must_not_contain_any", []):
-            if v.lower() in text_lower:
-                failures.append(f"must_not_contain: '{v}' found")
+        if case["id"] == "adv-02":
+            v = _find_marketing_deliverable(text, case["assertions"].get("must_not_contain_any", []))
+            if v:
+                failures.append(f"must_not_contain: '{v}' found with no refusal language nearby")
+        else:
+            for v in case["assertions"].get("must_not_contain_any", []):
+                if v.lower() in text_lower:
+                    failures.append(f"must_not_contain: '{v}' found")
 
         for pattern in case["assertions"].get("must_not_match_regex", []):
             if pattern == _FABRICATED_DOLLAR_FIGURE_PATTERN:

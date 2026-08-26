@@ -2,72 +2,72 @@
   "model": "us.anthropic.claude-sonnet-4-6",
   "judge_model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
   "judge_independent": true,
-  "runs_per_scenario": 1,
+  "runs_per_scenario": 3,
   "results": [
     {
       "scenario": "scenario-a-agribusiness",
       "run": 0,
       "method": "pipeline",
-      "total_cost_usd": 1.8321,
-      "total_latency_ms": 533539,
+      "total_cost_usd": 1.7637,
+      "total_latency_ms": 541196,
       "per_skill_metrics": [
         {
           "skill": "01",
           "name": "Client Discovery Intake",
           "input_tokens": 8704,
-          "output_tokens": 10926,
-          "latency_ms": 232068,
-          "cost_usd": 0.19,
+          "output_tokens": 9282,
+          "latency_ms": 197570,
+          "cost_usd": 0.1653,
           "tool_calls": 0,
           "retries": 0
         },
         {
           "skill": "02",
           "name": "Module Fit Analyzer",
-          "input_tokens": 222113,
-          "output_tokens": 1617,
-          "latency_ms": 25434,
-          "cost_usd": 0.6906,
-          "tool_calls": 26,
+          "input_tokens": 212107,
+          "output_tokens": 1487,
+          "latency_ms": 25386,
+          "cost_usd": 0.6586,
+          "tool_calls": 25,
           "retries": 0
         },
         {
           "skill": "03",
           "name": "Implementation Roadmap",
-          "input_tokens": 231505,
-          "output_tokens": 1353,
-          "latency_ms": 20422,
-          "cost_usd": 0.7148,
-          "tool_calls": 25,
+          "input_tokens": 222035,
+          "output_tokens": 1220,
+          "latency_ms": 21265,
+          "cost_usd": 0.6844,
+          "tool_calls": 21,
           "retries": 0
         },
         {
           "skill": "04",
           "name": "Executive Proposal Drafter",
-          "input_tokens": 25297,
-          "output_tokens": 10721,
-          "latency_ms": 255562,
-          "cost_usd": 0.2367,
+          "input_tokens": 23635,
+          "output_tokens": 12297,
+          "latency_ms": 296810,
+          "cost_usd": 0.2554,
           "tool_calls": 0,
           "retries": 0
         }
       ],
       "judge_scores": {
         "completeness": {
-          "score": 4,
-          "reasoning": "The discovery brief covers the vast majority of critical scoping dimensions systematically: client profile, current landscape, business requirements mapped to SAP modules, compliance framework, transformation context, and stakeholder mapping. It explicitly identifies 11 critical/important information gaps and frames 10 clarifying questions. The missing elements are relatively minor: no detailed IT infrastructure audit, no formal organizational chart, and limited detail on collection station network structure. For a Skill 01 discovery output, the breadth and depth are comprehensive. The explicit gap-flagging and confidence scoring (58% data completeness) demonstrate appropriate epistemic humility and reduce the risk of false precision."
+          "score": 5,
+          "reasoning": "This deliverable is exceptionally comprehensive. It covers all critical scoping dimensions for an agribusiness ERP selection: client profile, current landscape (Excel + WhatsApp), detailed business requirements organized by process area (Procure-to-Pay, inventory traceability, quality management, Order-to-Cash, financial close, multi-currency), compliance and regulatory framework (Tanzania Cashewnut Board, TRA, TPHPA, EU 178/2002, PDPA), transformation context (greenfield, cloud preference, product tier assessment), change management readiness with agricultural calendar awareness, stakeholder mapping, and initial module signals. The output explicitly flags 12 critical/important information gaps and provides 10 clarifying questions ranked by priority. There are no significant omissions in scope coverage\u2014even future-state considerations (Phase 2 certification, buyer portals, weather forecasting) are identified as 'nice-to-have' rather than pretended as deliverables."
         },
         "accuracy": {
-          "score": 4,
-          "reasoning": "Technical and SAP module recommendations are accurate: MM-PUR/FI-AP for procurement, MM-IM/WM/QM for batch traceability, QM for inspection lots, SD-OTC for sales, FI-GL with parallel currencies for multi-currency accounting, CO-PA for profitability analysis. The assessment that SAP Business One Cloud is likely a stronger fit than S/4HANA Cloud GROW at current scale ($65 employees, unknown revenue, tight budget) is sound and reflects realistic product-market fit. The reference to EC 178/2002 for EU food-safety traceability is accurate. The acknowledgment that Tanzania EFD (Electronic Fiscal Device) requires third-party tax localization reflects realistic SAP Tanzania gap. Timeline estimates (4-7 months for Business One, 6-9 months for GROW/S/4HANA Cloud) are realistic for Activate-based implementations. One minor note: the document infers revenue > $10M as a threshold for GROW suitability, but does not anchor this to SAP's official licensing guidance\u2014reasonable inference but not verified against current SAP pricing models. No material inaccuracies detected."
+          "score": 5,
+          "reasoning": "Technical and regulatory content is accurate: (1) SAP product tiering is correct\u2014Business One for <$5M, S/4HANA GROW for $5M\u2013$50M mid-market, RISE for enterprise\u2014with appropriate concerns noted (B1 limited GTS, GROW over-specification risk if <$5M). (2) Module recommendations are properly justified: FI for multi-currency TZS/USD/EUR and Tanzanian tax (VAT, withholding), MM for batch-managed farmer procurement, QM for kernel grading traceability, SD for export documentation, CO for cost center reporting. (3) Regulatory references are accurate: Tanzania Cashewnut Board licensing is real; Tanzania Revenue Authority export/VAT/withholding requirements are correct; EC Regulation 178/2002 General Food Law one-step-back one-step-forward traceability requirement is precisely stated; Tanzania PDPA 2022 is correctly identified. (4) Timeline estimates are realistic: 4\u20136 months for Business One, 6\u20139 months for GROW, both appropriate for greenfield with <250 users and no legacy migration. (5) BTP extension candidates (Integration Suite for mobile money API, Build Apps for offline field capture, Document Management for export forms) are technically sound and correctly scoped as zero clean-core impact extensions."
         },
         "actionability": {
-          "score": 4,
-          "reasoning": "This brief is actionable as a foundation for Skill 02 (Fit/Gap Analysis) and Skill 03 (Detailed Scope Document). A SAP consultant could immediately use it to: (1) structure a kickoff meeting around the 10 clarifying questions and 11 flagged gaps; (2) propose a phased discovery approach to fill critical data points (revenue, go-live date, executive sponsor) before final product-tier selection; (3) draft a preliminary functional design for MM, QM, FI multi-currency, and SD modules; (4) outline a change management strategy tailored to the rural, multi-language, seasonal-workforce context; (5) propose a Business One vs. GROW decision gate. The weakness is that the document does not provide a concrete next-step recommendation (e.g., 'Recommendation: Schedule a 3-hour financial/operational deep dive with CFO and MD within 2 weeks to confirm revenue, user count, and timeline'). For a Skill 01 output intended to feed downstream scoping, this is acceptable but would benefit from an explicit 'Next Actions' section."
+          "score": 5,
+          "reasoning": "A real SAP consultant could immediately use this as a foundation for Phase 2 module fit and sizing work. Specific, actionable elements: (1) The 10 clarifying questions are prioritized (CRITICAL vs. IMPORTANT vs. HELPFUL) and directly address go/no-go decisions: annual revenue determines product tier, go-live target enables implementation planning, concurrent user count determines licensing, budget range confirms feasibility. (2) Process pain points are structured with current state \u2192 desired state \u2192 SAP module relevance (e.g., 'Paper-based grading \u2192 Digital QM inspection records linked to procurement batch \u2192 QM + MM modules'). (3) Change management imperatives are prescriptive and sequenced: name the executive sponsor first, mandate mobile-first design for field adoption, plan farmer master data cleansing (6\u20138 weeks), recommend phased rollout (Phase 1: FI+MM+inventory; Phase 2: QM+export docs+mobile money). (4) The agricultural calendar constraint (April\u2013July buying season, avoid peak-season go-live) is operationally specific and helps schedule the engagement. (5) Stakeholder gaps are flagged with roles and relevance (Finance Lead, Ops Manager, Field Coordinator, Export Manager). A consultant could take this brief, send the 10 clarifying questions to the client, and schedule Skill 02 (module deep-dive) once answers arrive."
         },
         "sap_grounding": {
           "score": 5,
-          "reasoning": "The discovery brief demonstrates strong SAP methodological grounding throughout. Evidence: (1) Explicit references to SAP Activate phases and Clean Core principles, with assessment that Highland Harvest is an ideal Clean Core candidate (greenfield, no legacy customizations, high willingness to adopt standard processes); (2) Correct SAP module nomenclature (MM-PUR, MM-IM, WM, QM, SD-OTC, FI-GL, FI-AP, FI-AR, CO-PA, CO-CCA, GTS, BTP); (3) Recognition of SAP Business One as a distinct product tier with clear functional tradeoffs vs. S/4HANA Cloud; (4) Scope item framing ('procurement,' 'inventory management,' 'quality management,' 'order-to-cash') in SAP-native language; (5) Assessment of parallel currency areas in FI as the native mechanism for multi-currency accounting; (6) BTP integration flagged as the key technical challenge for mobile money integration; (7) Clean core challenge assessment (custom-code evaluation is 'none' because greenfield, but clean core *opportunity* is explicitly framed as high). The document also correctly identifies what should be excluded (EWM, TM, full HCM/SuccessFactors) with justification\u2014demonstrating discernment about SAP's modular architecture. This is not generic ERP advice; it is grounded in SAP-specific product and methodology knowledge."
+          "reasoning": "Recommendations are deeply grounded in SAP methodology and Clean Core principles: (1) Product tier assessment explicitly references SAP's own go-to-market segmentation (Business One for SMEs <$50M, S/4HANA GROW as fixed-scope public cloud for mid-market, RISE for enterprise)\u2014not speculative but SAP's documented positioning. (2) Module recommendations cite specific SAP capabilities: QM batch classification, MM batch management, FI multi-currency ledger, CO profit center analysis, GTS for phytosanitary data. (3) Clean Core strategy is articulated: 'zero legacy ABAP,' 'greenfield advantage,' 'stay within SAP standard scope,' and BTP extensions identified as 'side-by-side' with 'zero core modification' impact\u2014this is Clean Core language. (4) BTP extensions are grounded in SAP's current portfolio: SAP Integration Suite (API Management) for mobile money API integration, SAP Build Apps (no-code mobile) or SAP Mobile Services for field capture, Document Management Service or BTP output forms for export documentation\u2014all real SAP services, not generic 'API integration' concepts. (5) Activate methodology is implied through the phased rollout recommendation (Phase 1 foundation modules \u2192 Phase 2 advanced), and the emphasis on business process design before configuration. (6) Compliance scope (Tanzanian tax configuration, EU food-safety traceability) is framed as system design requirements, not afterthoughts. (7) The 'data completeness score' (58%) and explicit listing of CRITICAL vs. IMPORTANT vs. HELPFUL gaps uses SAP assessment frameworks. Nothing is vague or non-committal\u2014recommendations are specific to SAP products and SAP delivery methodology."
         }
       }
     },
@@ -75,15 +75,15 @@
       "scenario": "scenario-a-agribusiness",
       "run": 0,
       "method": "baseline",
-      "total_cost_usd": 0.2042,
-      "total_latency_ms": 258695,
+      "total_cost_usd": 0.2253,
+      "total_latency_ms": 287984,
       "per_skill_metrics": [
         {
           "skill": "combined",
           "input_tokens": 815,
-          "output_tokens": 13450,
-          "latency_ms": 258695,
-          "cost_usd": 0.2042,
+          "output_tokens": 14854,
+          "latency_ms": 287984,
+          "cost_usd": 0.2253,
           "tool_calls": 0,
           "retries": 0
         }
@@ -91,19 +91,225 @@
       "judge_scores": {
         "completeness": {
           "score": 4,
-          "reasoning": "The deliverable covers critical scoping dimensions comprehensively: discovery brief with detailed pain points, organizational readiness, compliance framework, module fit analysis with 11 modules evaluated, platform recommendation with comparison table, and a detailed 12-month roadmap. However, some gaps exist: (1) Risk register is mentioned but not provided with mitigation strategies; (2) Resource plan is not detailed (team composition, skillsets, estimated costs); (3) Data migration strategy is mentioned only in timeline but lacks specifics (data cleansing approach, legacy data mapping); (4) Change management plan is referenced but lacks concrete workstreams beyond 'hands-on training.' For a real consulting engagement, these would need fuller expansion. The completeness is ~85% for scoping deliverables."
+          "reasoning": "The deliverable covers most critical scoping dimensions: business context (client profile, pain points), regulatory drivers, strategic objectives, stakeholder analysis, platform selection rationale, module fit analysis with detailed scope, and a roadmap outline. However, the roadmap is incomplete (Section 3.2 onwards appears truncated), and critical elements like detailed risk assessment, cost-benefit analysis, resource planning, and detailed testing strategy are absent or underdeveloped. Data migration strategy is mentioned but not fully scoped. Phase 2+ details are missing. For a real scoping deliverable, these gaps represent approximately 25-30% missing content."
         },
         "accuracy": {
           "score": 4,
-          "reasoning": "The module recommendations and SAP B1 platform positioning are technically sound and well-justified. Specific strengths: (1) Correct distinction between S/4HANA (over-engineered for 65-person company) and B1; (2) Module relevance scores align with stated pain points (P1-P6) and are appropriately mapped; (3) Tanzania-specific regulatory references (TRA, TPHPA, TBS) are accurate and demonstrate local domain knowledge; (4) EU regulatory citations (EC 178/2002, EUDR, FSMA) are correct and appropriately contextualized. Minor concerns: (1) Timeline estimate of 8 months to go-live for Phase 1 may be optimistic if mobile money API integration proves complex (typical B1 implementations in agribusiness run 6\u20139 months for core, plus 2\u20133 months for integrations); (2) Cost estimates are absent, which makes accuracy assessment incomplete; (3) The claim that 'BTP Integration Suite' has a mobile money connector is not explicitly stated as custom/partner-built, which could mislead a non-technical reader. Overall accuracy ~85%."
+          "reasoning": "Technical accuracy is strong in most areas: SAP B1 vs. S/4HANA platform comparison is sound and consultant-grade; module recommendations are appropriate for SME agribusiness; regulatory references (EC 178/2002, EUDR 2023/1115, Tanzania-specific requirements) are accurate; FX management and lot traceability use cases are correctly mapped. Mobile money integration via SAP BTP is the correct architectural approach. However, some estimates lack precision: '7 months to go-live' is optimistic for greenfield including 3,200 farmer data migration and custom BTP integration\u2014typical realistic window is 8-10 months; the fit scores (85/100, 92/100) appear somewhat inflated without supporting detail on specific configuration decisions or known limitations. Tanzania localization claims ('available through certified SAP B1 partners') are stated without verification."
         },
         "actionability": {
-          "score": 3,
-          "reasoning": "This deliverable is substantially complete as a discovery document but has gaps as an actionable implementation roadmap: Strengths: (1) Pain points are specific, ranked, and mapped to modules\u2014a real SAP consultant could use this to build a detailed requirements document; (2) The module fit section includes clear priority labels (Must-Have / High / Phase 1/2) suitable for sprint planning; (3) Open discovery questions are concrete and answerable; (4) Platform recommendation with comparison table eliminates ambiguity about S/4HANA vs. B1. Weaknesses: (1) Implementation roadmap is timeline-only; lacks work breakdown structure (WBS), deliverable definitions, or detailed phase exit criteria; (2) No resource/cost estimates; (3) BTP mobile money integration is flagged as critical but the technical approach is vague ('custom or partner-built API'\u2014what API, what vendor, what cost?); (4) Test strategy, UAT scope, and cutover plan are absent; (5) No organizational change network identified; (6) Training plan is mentioned but not detailed. A consultant could use this as a framing document but would need to expand sections 2\u20134 significantly before presenting to the client. Actionability ~70%."
+          "score": 4,
+          "reasoning": "The document is highly actionable for Phase 1 planning: it provides clear module inclusion/exclusion decisions, identifies the specific custom integration requirement (mobile money via BTP), flags data migration risks (farmer master data quality), and gives specific scope items for configuration (lot traceability, multi-currency FX revaluation, export document layouts). A SAP consultant could use this as a starting point for project planning. However, actionability is weakened by: (1) the truncated roadmap section\u2014no detailed activity list, milestones, or dependency map; (2) no effort estimation breakdown by module or workstream; (3) no resource profile (how many consultants, which skill sets); (4) no go-live cutover strategy; (5) limited change management detail beyond 'change readiness' stakeholder assessment. A consultant would need to add 30-40% more operational planning detail before presenting to Highland Harvest."
         },
         "sap_grounding": {
           "score": 4,
-          "reasoning": "The deliverable demonstrates solid SAP methodology grounding with specific strengths and minor gaps: Strengths: (1) Correct SAP Activate mindset evident in the phased approach (Foundation \u2192 Extension \u2192 Optimisation mirrors Activate Realize/Run structure); (2) Module-level scope items are specific to SAP B1 (e.g., 'Batch creation at farmer delivery,' 'Payment run generation to mobile money provider,' 'Bin-level stock tracking'); (3) BTP Integration Suite is correctly positioned as the connective layer for non-SAP systems; (4) Excluded modules section demonstrates understanding of S/4HANA scope boundaries and appropriate down-scoping. Gaps: (1) No explicit reference to SAP Activate phases (Discover, Explore, Realize, Deploy) or Activate work streams; (2) Scope item taxonomy is not SAP-standard (no reference to scope item codes like 'FI-GL-001'); (3) Clean Core principle is not mentioned (no discussion of custom code minimization or use of standard processes); (4) No explicit mapping to SAP Best Practices or Industry Solution Maps; (5) The roadmap does not reference SAP Activate gates or governance artifacts (business blueprint, RACI matrix, sign-off templates). For an early-stage scoping document, this is reasonable, but a certified Activate consultant would expect tighter SAP-methodological framing. SAP grounding ~75%."
+          "reasoning": "The deliverable demonstrates solid SAP methodology grounding: references SAP Activate methodology implicitly (Phase 0/1/2 structure), mentions SAP B1 and S/4HANA correctly with accurate positioning relative to market segment (10\u2013200 employees for B1), correctly identifies SAP BTP Integration Suite as the middleware for non-native connectors, and references Crystal Reports for custom document generation. Platform recommendation logic (cost, timeline, TCO trade-offs) reflects genuine SAP sizing expertise. However, grounding could be stronger: (1) no explicit Activate phase naming or scope item linkage; (2) SAP Clean Core principles not mentioned (would be relevant for data simplification); (3) no reference to SAP Activate Value Stream Analysis or similar discovery artifacts; (4) BTP section is technically correct but lacks mention of specific integration patterns (e.g., API/Outbound Queues) or deployment options (Cloud vs. on-prem); (5) does not reference SAP's own agribusiness/commodity solutions (e.g., SAP AgriTech initiative) or industry-specific accelerators. Scope item nomenclature is generic rather than using standard SAP FI/MM/SD/SD scope item naming conventions from Activate playbooks."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-a-agribusiness",
+      "run": 1,
+      "method": "pipeline",
+      "total_cost_usd": 1.6989,
+      "total_latency_ms": 453181,
+      "per_skill_metrics": [
+        {
+          "skill": "01",
+          "name": "Client Discovery Intake",
+          "input_tokens": 8704,
+          "output_tokens": 8847,
+          "latency_ms": 177760,
+          "cost_usd": 0.1588,
+          "tool_calls": 0,
+          "retries": 0
+        },
+        {
+          "skill": "02",
+          "name": "Module Fit Analyzer",
+          "input_tokens": 208910,
+          "output_tokens": 1430,
+          "latency_ms": 22733,
+          "cost_usd": 0.6482,
+          "tool_calls": 25,
+          "retries": 0
+        },
+        {
+          "skill": "03",
+          "name": "Implementation Roadmap",
+          "input_tokens": 219365,
+          "output_tokens": 1251,
+          "latency_ms": 19931,
+          "cost_usd": 0.6769,
+          "tool_calls": 24,
+          "retries": 0
+        },
+        {
+          "skill": "04",
+          "name": "Executive Proposal Drafter",
+          "input_tokens": 23163,
+          "output_tokens": 9698,
+          "latency_ms": 232709,
+          "cost_usd": 0.215,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 4,
+          "reasoning": "The deliverable covers all critical scoping dimensions: client profile, current landscape, business requirements, compliance, transformation context, stakeholder map, and module signals. The discovery brief explicitly flags 13 critical/important information gaps and provides 10 prioritized clarifying questions, demonstrating self-awareness about incompleteness. However, some dimensions lack depth: IT infrastructure assessment is minimal (only noted as unknown), detailed process flows are missing, and no formal enterprise architecture or integration landscape diagram is provided. The output is ~95% complete for discovery-phase deliverables but would need structured follow-up to move to detailed scoping."
+        },
+        "accuracy": {
+          "score": 4,
+          "reasoning": "Module recommendations are accurately mapped: FI, CO, MM, SD, QM are correctly identified as high-relevance; GTS is appropriately downscoped as over-engineered for Phase 1; BTP for mobile money integration is correctly positioned as architecturally required rather than optional. SAP product references (S/4HANA Cloud Public Edition via GROW, SAP Business One as alternative, BTP Integration Suite) are accurate and appropriately conditional on revenue confirmation. Timeline estimates (6-9 months for S/4HANA Cloud, 4-6 months for Business One) are reasonable for greenfield implementations of this scope. Regulatory framework references (EU Regulation 178/2002, Tanzania Cashewnut Board, Tanzania PDPA 2022) are accurate. One minor note: EUDR and cashew commodity scope is correctly assessed as not currently applicable but flagged for annual review. No major errors detected; some inferences are clearly labeled as such."
+        },
+        "actionability": {
+          "score": 4,
+          "reasoning": "The deliverable is structured as a working document for a SAP implementation team. The three blocking questions (revenue, user count, budget) are clearly prioritized and would unlock next-step decisions. The recommended next steps at the end (DDA, module fit analysis, stakeholder confirmation) provide a concrete roadmap. Process pain points are mapped to specific SAP modules with clean-core notes, enabling the scoping team to build configuration specifications. The change management risk section identifies the Excel-to-ERP transition as the primary risk and recommends treating it as the #1 project priority \u2014 this is actionable guidance. However, the deliverable stops short of providing a formal scoping template, gap assessment matrix, or readiness scorecard that would normally follow discovery; it is positioned as input to those downstream artifacts rather than a ready-to-present scoping document. A SAP consultant could use this as a strong foundation but would need to conduct the recommended follow-up calls and structured assessments before client-facing recommendations."
+        },
+        "sap_grounding": {
+          "score": 4,
+          "reasoning": "SAP methodology references are specific and appropriate: Clean Core readiness assessment with LOW risk rating and explanation of greenfield advantage; BTP positioned as the architectural pattern for mobile money integration (correctly not attempted in core SAP); SAP GROW mentioned by name as the go-to-market vehicle for SME S/4HANA Cloud; FI multi-currency revaluation, batch management in MM, QM for food traceability, and SD foreign trade data are all correctly described as standard SAP capabilities requiring zero customization. The brief correctly notes that module scoping should follow Activate methodology (implied in 'recommended next steps' referencing DDA \u2014 Digital Discovery Assessment \u2014 which is an SAP Activate phase artifact). One gap: the deliverable does not explicitly reference SAP Activate phases or formal scope item categorization (e.g., Activate scope items for each module), which would strengthen SAP methodology grounding. The over-engineering guard at the end ('successful narrow implementation beats a failed broad one') reflects SAP best-practice thinking but could cite Activate principles more explicitly. Overall, strong SAP grounding with minor room for deeper methodology specificity."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-a-agribusiness",
+      "run": 1,
+      "method": "baseline",
+      "total_cost_usd": 0.2104,
+      "total_latency_ms": 264022,
+      "per_skill_metrics": [
+        {
+          "skill": "combined",
+          "input_tokens": 815,
+          "output_tokens": 13862,
+          "latency_ms": 264022,
+          "cost_usd": 0.2104,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 4,
+          "reasoning": "The deliverable covers critical scoping dimensions comprehensively: discovery brief with stakeholder mapping, pain point register, regulatory compliance, integration requirements, and data migration. Module fit analysis with platform recommendation is detailed. Implementation roadmap through Phase 1 is well-structured. However, some gaps exist: detailed testing strategy (UAT scope, defect management) is not fleshed out; post-go-live hypercare plan lacks specificity (duration, staffing); Phase 2-3 details are skeletal; no explicit business case with financial ROI projections; risk mitigation strategies are underdeveloped (only one 'Key Risk' called out in Phase 1A). Change management plan is mentioned but not detailed. Overall ~75-80% coverage of what a real consultant would need."
+        },
+        "accuracy": {
+          "score": 4,
+          "reasoning": "Module recommendations are sound and appropriately scoped to SAP Business One, not enterprise S/4HANA \u2014 this is expert-level judgment for a 65-person company. Regulatory citations (EC 178/2002, EUDR 2023/1115, FSMA, Tanzania TPHPA) are accurate. Multi-currency handling, batch traceability, and export documentation are correctly mapped to FI-AP, MM, SD, and BTP Integration Suite. Timeline (8 months Phase 1) is realistic for a greenfield SMB implementation. Pain point-to-module mappings are logical (inventory accuracy \u2192 MM-IM + Batch Management; multi-currency \u2192 FI multi-currency GL; export docs \u2192 SD output + GTS lite). However, one concern: the 58 estimated consultant days for build phase appears slightly low for configuring mobile money integration (10 days) without seeing the complexity of M-Pesa/Tigo API documentation \u2014 this could be optimistic. SAP references (Activate, Clean Core principles not explicitly mentioned) are implicitly correct but not articulated."
+        },
+        "actionability": {
+          "score": 4,
+          "reasoning": "This deliverable is highly actionable as a starting point for an implementation partner. The structured discovery brief provides concrete talking points for kick-off workshops (open questions listed). Module fit matrix clearly indicates P1/P2/P3 priorities and exclusions \u2014 no ambiguity on scope. Roadmap is broken into weekly activities with assigned owners and deliverables through Phase 1A. Consultant effort estimates (Phase 1B build: 58 days) give a partner a budgeting baseline. Farmer data cleansing is flagged as critical path. BTP mobile money integration is identified as a custom development, not a standard fit \u2014 actionable for a technical architect. However, lacks: detailed task dependencies (Gantt chart or network diagram); resource allocation by skill (how many SAP experts vs. junior functional consultants); contingency plan if mobile money integration is more complex; detailed training curriculum by role; specific testing matrix with pass/fail criteria. A real partner would need to add another 30-40 pages of detailed workplans before client presentation. Sufficient for partner pitch/proposal; not sufficient for execution without rework."
+        },
+        "sap_grounding": {
+          "score": 3,
+          "reasoning": "Grounding in SAP methodology is present but inconsistent. Strengths: SAP Business One is correctly recommended over S/4HANA Enterprise for this profile (shows awareness of SAP licensing and architecture). Module naming is accurate (FI, MM, SD, CO, AA, QM, BTP Integration Suite). Multi-currency GL, batch management, and goods receipt workflows are real SAP functionality. Weaknesses: No explicit reference to SAP Activate methodology phases (Discover/Prepare/Realize/Deploy). 'Clean Core' principles are mentioned as a key assumption but not explained or applied to scope decisions. No mention of SAP Solution Manager or Best Practice Repository (BPR). SAP Business One is correctly identified as the platform but implementation partner ecosystem and SAP GROW offering details are missing. BTP Integration Suite is correctly flagged, but the deliverable does not explain SAP Cloud Platform (SCP) vs. BTP terminology or the business vs. technical owner governance model. No reference to SAP Fiori UX or role-based access control design. The deliverable reads more like a generic ERP scoping document that happens to use SAP terminology, rather than one grounded in SAP-specific best practices, methodologies, or reference materials. A true SAP-grounded document would cite Activate phases, scope item catalogs (e.g., RISE scope guide), or known SAP agribusiness accelerators (few exist, but this would be discovered in SAP methodology)."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-a-agribusiness",
+      "run": 2,
+      "method": "pipeline",
+      "total_cost_usd": 1.8567,
+      "total_latency_ms": 600886,
+      "per_skill_metrics": [
+        {
+          "skill": "01",
+          "name": "Client Discovery Intake",
+          "input_tokens": 8704,
+          "output_tokens": 9988,
+          "latency_ms": 208636,
+          "cost_usd": 0.1759,
+          "tool_calls": 0,
+          "retries": 0
+        },
+        {
+          "skill": "02",
+          "name": "Module Fit Analyzer",
+          "input_tokens": 214974,
+          "output_tokens": 1357,
+          "latency_ms": 20907,
+          "cost_usd": 0.6653,
+          "tool_calls": 25,
+          "retries": 0
+        },
+        {
+          "skill": "03",
+          "name": "Implementation Roadmap",
+          "input_tokens": 225654,
+          "output_tokens": 1325,
+          "latency_ms": 20488,
+          "cost_usd": 0.6968,
+          "tool_calls": 25,
+          "retries": 0
+        },
+        {
+          "skill": "04",
+          "name": "Executive Proposal Drafter",
+          "input_tokens": 24304,
+          "output_tokens": 16384,
+          "latency_ms": 350795,
+          "cost_usd": 0.3187,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 4,
+          "reasoning": "The discovery brief covers critical scoping dimensions comprehensively: client profile, current landscape (greenfield status), business requirements (with detailed process pain points mapped to SAP modules), compliance/regulatory context, transformation context, and stakeholder mapping. The output explicitly flags missing information (11 items categorized by criticality: 3 CRITICAL, 5 IMPORTANT, 3 HELPFUL), demonstrating mature gap awareness. However, completeness is capped at 4 rather than 5 because: (1) the brief does not attempt a detailed module selection or blueprint recommendation (acknowledges this is premature without revenue data), (2) no phasing roadmap with Activate milestones is provided, (3) data migration and master data strategy is mentioned but not detailed. These are appropriate omissions given the stated incompleteness, but they prevent a 5-score. The self-awareness about gaps is itself a sign of rigor."
+        },
+        "accuracy": {
+          "score": 4,
+          "reasoning": "Module references are accurate and appropriately contextualized: MM-PUR/MM-IM/QM/SD-OTC/SD-SHP/SD-FT are correct for the stated processes. The EU General Food Law (EC Regulation 178/2002) citation is accurate and properly applied to agricultural commodity traceability. Tanzania Cashewnut Board (TCB) and Tanzania Revenue Authority (TRA) are correct regulatory references. The assessment that raw cashew nuts are not subject to strategic export controls is correct. The recommendation toward SAP Business One or SAP GROW (not full S/4HANA) for a 65-person company is industry-standard and accurate. However, accuracy is capped at 4 (not 5) because: (1) the brief does not provide definitive product recommendation \u2014 it correctly defers this pending revenue data, which is appropriate but means no definitively accurate recommendation has been made, (2) timelines are estimated as 6-9 months without supporting project experience data or reference to Activate phase durations, (3) Tanzania Personal Data Protection Act, 2022 is cited as a potential data residency constraint but not rigorously analyzed \u2014 the actual legal requirement is not elaborated. These are minor; the brief is careful to distinguish inference from confirmation."
+        },
+        "actionability": {
+          "score": 3,
+          "reasoning": "A real SAP consultant could use this as a starting point for requirements discovery, but significant rework is required before this becomes actionable as a scoping document. Strengths: (1) the 10-question clarification list is immediately usable as a discovery interview guide, (2) the pain point-to-module mapping (e.g., 'Procurement \u2014 Smallholder Farmer Purchasing' \u2192 MM-PUR + FI-AP + BTP) is a solid foundation for scope breakdown, (3) the risk and mitigation sections (change management, data quality, mobile interface usability) are actionable for project planning. Limitations: (1) no proposed scope item list in SAP Activate format (Activate uses 'scope items' tied to processes and phase gates; this brief maps processes but does not enumerate specific SAP scope items), (2) no proposed phase breakdown (Discover/Realize/Deploy/Run) with deliverables per phase, (3) the BTP mobile money integration is flagged as a Clean Core extension requirement but no integration architecture or partner options are proposed, (4) no effort estimate (story points, resource-months) or cost model is provided \u2014 a consultant would still need to build these. The brief is high-quality intake material, but a consultant would need to translate it into a formal SAP Activate scope workbook before presenting to the client."
+        },
+        "sap_grounding": {
+          "score": 4,
+          "reasoning": "The brief demonstrates solid SAP methodology awareness grounded in Activate and Clean Core principles. Specific strengths: (1) Clean Core strategy is explicitly discussed with correct understanding that mobile money integration must be a 'side-by-side extension, not a core modification' to preserve Clean Core integrity, (2) the recommendation to defer GTS (Global Trade Services) to Phase 2 and scope SD-FT for Phase 1 shows understand of phased deployment aligned with Activate release gates, (3) SAP module codes (MM-PUR, SD-OTC, etc.) are used correctly throughout, (4) the brief correctly identifies this as a greenfield Activate Discover phase engagement, not a legacy migration project. However, the grounding is capped at 4 (not 5) because: (1) there is no explicit mapping to SAP Activate methodology phases or scope item templates, (2) no reference to specific Activate configuration packages (Config Packages) or best-practice scope items from SAP's preconfigured solution content, (3) the brief acknowledges SAP GROW exists but does not map this to SAP's Fast-Track or SAP Activate Rapid Deployment methodology \u2014 these are relevant since GROW includes fixed-price rapid deployment options that should shape the timeline estimate, (4) no discussion of SAP's industry-specific accelerators (Agribusiness is not a named SAP accelerator, but agricultural commodity trading has some content in SAP's 'Food & Beverage' vertical \u2014 the brief does not reference this). These omissions are minor (appropriate given discovery phase) but prevent a 5."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-a-agribusiness",
+      "run": 2,
+      "method": "baseline",
+      "total_cost_usd": 0.1561,
+      "total_latency_ms": 193205,
+      "per_skill_metrics": [
+        {
+          "skill": "combined",
+          "input_tokens": 815,
+          "output_tokens": 10241,
+          "latency_ms": 193205,
+          "cost_usd": 0.1561,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 5,
+          "reasoning": "This deliverable covers all critical scoping dimensions comprehensively: (1) Structured discovery brief with detailed client profile, business model, pain points mapped to regulatory drivers, and integration landscape; (2) Module fit analysis with platform recommendation (GROW vs. Business One) and explicit fit scoring for core, important, and extension modules; (3) Phased implementation roadmap spanning 18 months with detailed workstreams, durations, and go-live gates; (4) Resource plan and budget estimates (two options); (5) Risk register addressing change management, integrations, and compliance. The deliverable includes executive summaries, radars, and timeline visualizations. No significant gaps identified\u2014traceability, compliance, financial management, scalability, and change management are all addressed."
+        },
+        "accuracy": {
+          "score": 5,
+          "reasoning": "Module recommendations are accurate and well-justified: FI, CO, MM, SD, and batch management correctly identified as critical; QM appropriately included for aflatoxin/food-safety traceability; BTP Integration Suite correctly specified for mobile money (no native SAP East Africa connectors exist). Regulatory citations are precise: EC 178/2002, EUDR (Regulation EU 2023/1115 with December 2024 timeline), FSMA, CODEX Alimentarius standards all correctly referenced. GROW vs. Business One assessment is accurate for this 65-employee greenfield scenario. Timeline estimates (9 months to first go-live, 18 months to full scale) are realistic for a phased approach with this complexity. SAP terminology and product names (SAP Analytics Cloud, Fiori, BTP Build Apps) are accurate. Financial estimates ($184k\u2013$274k Year 1 for GROW, $110k\u2013$165k for B1) are reasonable for a mid-market East Africa implementation."
+        },
+        "actionability": {
+          "score": 5,
+          "reasoning": "A real SAP consultant could use this as a starting point with minimal rework. The deliverable provides: (1) Explicit Phase 0\u20133 workstreams with assigned owners and week-level durations\u2014ready to be input into MS Project; (2) Specific module configuration calls (e.g., 'parallel ledger USD', 'batch classification for moisture/grade', 'FI company code in TZS'); (3) SI partner selection criteria (East Africa experience, agribusiness references, mobile money expertise); (4) Training waves identified by function and timing; (5) Go-live gates with measurable investor KPIs; (6) Risk mitigations that are tactical (e.g., 'offline field app capability', 'dedicate data cleansing sprint'). The resource table specifies allocation percentages and duration. Budget table is structured for procurement. Missing only detailed configuration specifications (e.g., exact GL account structure, vendor classification logic) which would be appropriate for Phase 0 design workshops, not discovery."
+        },
+        "sap_grounding": {
+          "score": 5,
+          "reasoning": "Recommendations are deeply grounded in SAP methodology: (1) Platform selection references SAP's own positioning (GROW for mid-market, Business One for SME), not generic guessing; (2) Module fit analysis explicitly cites SAP transaction codes (FI, CO, MM-IM, SD, QM, TR, EWM, DMS); (3) Batch management recommendation specifies 'MM-IM Batch Management' with correct module notation; (4) BTP extension strategy (Integration Suite iFlow for mobile money, Build Apps for field UX, Analytics Cloud for investor reporting) reflects actual SAP cloud architecture, not aspirational; (5) Parallel run duration (4 weeks) and phased delivery (Phases 0\u20133) align with SAP Activate methodology cadence; (6) Risk register calls out SAP-specific adoption factors ('SAP GUI inappropriate for field workers', 'Fiori app for simplified UX'); (7) Reference to 'fit-to-standard sessions' and 'scope items' reflects SAP Activate vernacular; (8) Governance structure (steering committee, RACI, super users) mirrors SAP best practices. No generic ERP language detected\u2014recommendations are distinctly SAP."
         }
       }
     },
@@ -111,66 +317,66 @@
       "scenario": "scenario-b-high-tech",
       "run": 0,
       "method": "pipeline",
-      "total_cost_usd": 2.1227,
-      "total_latency_ms": 649287,
+      "total_cost_usd": 1.9437,
+      "total_latency_ms": 593951,
       "per_skill_metrics": [
         {
           "skill": "01",
           "name": "Client Discovery Intake",
           "input_tokens": 9315,
-          "output_tokens": 15663,
-          "latency_ms": 311466,
-          "cost_usd": 0.2629,
+          "output_tokens": 11730,
+          "latency_ms": 231704,
+          "cost_usd": 0.2039,
           "tool_calls": 0,
           "retries": 0
         },
         {
           "skill": "02",
           "name": "Module Fit Analyzer",
-          "input_tokens": 253630,
-          "output_tokens": 1218,
-          "latency_ms": 22039,
-          "cost_usd": 0.7792,
-          "tool_calls": 22,
+          "input_tokens": 232047,
+          "output_tokens": 2156,
+          "latency_ms": 30421,
+          "cost_usd": 0.7285,
+          "tool_calls": 40,
           "retries": 0
         },
         {
           "skill": "03",
           "name": "Implementation Roadmap",
-          "input_tokens": 263149,
-          "output_tokens": 1121,
-          "latency_ms": 20461,
-          "cost_usd": 0.8063,
-          "tool_calls": 20,
+          "input_tokens": 239515,
+          "output_tokens": 890,
+          "latency_ms": 18696,
+          "cost_usd": 0.7319,
+          "tool_calls": 15,
           "retries": 0
         },
         {
           "skill": "04",
           "name": "Executive Proposal Drafter",
-          "input_tokens": 30590,
-          "output_tokens": 12170,
-          "latency_ms": 295235,
-          "cost_usd": 0.2743,
+          "input_tokens": 26657,
+          "output_tokens": 13292,
+          "latency_ms": 313056,
+          "cost_usd": 0.2794,
           "tool_calls": 0,
           "retries": 0
         }
       ],
       "judge_scores": {
         "completeness": {
-          "score": 4,
-          "reasoning": "The output is comprehensive across most critical scoping dimensions: client profile, current landscape, business requirements, compliance, and transformation context are well-developed. However, three significant gaps exist: (1) no formal target-state architecture or SAP roadmap is articulated \u2014 only pain points and must-haves are listed; (2) no wave/phase breakdown is provided despite frequent references to 'Phase 1' \u2014 prioritization and sequencing are absent; (3) no implementation approach details (timelines, resource model, governance structure) are provided. For a scoping deliverable, these omissions prevent the brief from evolving into an actionable program blueprint. The missing information flags are extensive and appropriate, but they should have triggered a draft approach on how to obtain those clarifications, rather than leaving them open. Estimated 70-75% coverage of a complete S/4HANA scoping deck."
+          "score": 5,
+          "reasoning": "The output systematically covers all critical scoping dimensions: client profile (industry, geography, ownership, scale), current landscape (ERP, adjacent systems, data quality, customization debt), business requirements (pain points, process gaps, regulatory drivers), compliance framework (ITAR, EAR, SOX, IFRS 15, audit requirements), transformation context (conversion vs. greenfield, deployment model, Clean Core readiness), timeline/budget feasibility, change management readiness, stakeholder mapping, and module signals. The discovery brief explicitly flags missing information (9 separate IMPORTANT/HELPFUL flags) and poses 10 targeted clarifying questions, demonstrating awareness of scope boundaries. Initial module signals are provided with high/medium/low/excluded categories. No critical scoping area is omitted."
         },
         "accuracy": {
-          "score": 4,
-          "reasoning": "Technical recommendations are sound and SAP-accurate: ECC 6.0 EHP8 on-premise details are correct; Custom Code Migration Worklist (SCMG) and ABAP Test Cockpit references are accurate; SAP GTS, RAR, Universal Journal, and BTP Integration Suite recommendations are appropriate for the stated requirements. The industry context (aerospace & defense, ITAR, AS9100) is correctly framed. However, three accuracy concerns: (1) the assertion that 2,400 custom objects is '3x excess' vs. benchmark 400-900 is stated as fact without citation \u2014 benchmarks vary significantly by company size and industry maturity; (2) the statement that 'ECC mainstream maintenance ends 2027' \u2014 as of 2026, this timeline should be verified against current SAP roadmap; (3) the claim that S/4HANA Cloud PE supports 'zero offshore support access to controlled data' is overstated \u2014 data residency and support access are complex and highly dependent on TAA/commercial arrangements, not guaranteed by product. Minor: the brief infers Teamcenter Standard Integration Adapter exists; verify this exists and is current. Estimated 85% accuracy with noted caveats on benchmarks and regulatory interpretation."
+          "score": 5,
+          "reasoning": "Technical references are accurate and grounded: ECC 6.0 EHP8 (real system), maintenance end dates (2027 standard, 2030 extended) correctly stated, RISE with SAP Cloud PE correctly identified as parent alignment vehicle, ITAR/USML Category XV correctly assigned to satellite systems, SAP Revenue Accounting and Reporting (RAR) correctly positioned as the IFRS 15/ASC 606 solution module (not legacy FI configurations), GTS correctly scoped as the ITAR compliance backbone, Readiness Check 2.0 and ATC correctly named for custom code assessment. Timeline feasibility (34 months from Feb 2026 to Dec 2028) is mathematically sound. Budget range ($15-25M) with detailed cost build-up is realistic for A&D manufacturing complexity at this scale. The 2-wave delivery recommendation (Wave 1: Finance/GTS/Compliance Q3 2027, Wave 2: Manufacturing/SCM Q4 2028) is architecturally sound and defensible. No material technical errors detected."
         },
         "actionability": {
-          "score": 3,
-          "reasoning": "The brief is usable as a starting point for a scoping engagement but requires significant rework before presenting to a client or steering committee. Strengths: pain points are specific and quantified; clarifying questions are concrete and prioritized with business justification; compliance gaps are clearly flagged with risk levels. Weaknesses: (1) no wave plan or priority sequencing \u2014 'Phase 1' is referenced multiple times but never defined; (2) no resource model, timeline, or cost implications provided; (3) no formal recommendation on transformation type is completed (text says 'RECOMMENDED WITH SELECTIVE REDESIGN' but the rationale section is truncated); (4) no governance, risk, or change management approach outlined; (5) no appendix or reference material for the aerospace/defense industry context. A consultant could use this as a discovery brief to drive further investigation and interviews, but not yet as a scoping proposal or implementation roadmap. Estimated 60-65% ready for external presentation \u2014 requires executive summary, wave prioritization, and risk/resource framework before client delivery."
+          "score": 5,
+          "reasoning": "A real SAP consultant could immediately use this as a foundation: (1) The 9 clarifying questions are specific enough to drive concrete follow-up interviews with named stakeholders (CISO on ITAR inventory, CFO on contract portfolio, VP Manufacturing on MES/PLM failure root causes). (2) The module signals with high/medium/low relevance provide a starting point for scope cut-lines. (3) The two-wave delivery strategy gives a defensible architecture for the project roadmap. (4) The Clean Core assessment (current Level D, target Level B, specific bucket classifications for 2,400 objects) provides concrete remediation workload sizing. (5) Budget validation with line-item cost drivers ($2-5K per custom object, $1.5-3M GTS, $1-2M RAR, etc.) enables challenger/sanity-check discussion with procurement. (6) The change management risk narrative (prior failed projects, organizational skepticism, OCM investment needed) directly informs governance design. (7) The delivery approach (conversion, not greenfield; Cloud PE, not on-premise or Public Edition) makes a defensible architectural case. All recommendations are grounded in specific facts from the scenario (board deadline, budget approval, product list, headcount, revenue, customization depth) \u2014 not generic advice."
         },
         "sap_grounding": {
-          "score": 4,
-          "reasoning": "The brief demonstrates strong SAP Activate and scope-item awareness. Specific references include: SAP GTS for export control (correctly tied to ITAR/EAR and noted as non-negotiable); Revenue Accounting and Reporting (RAR) module for IFRS 15/ASC 606; Universal Journal for financial close; SAP Project System (PS) for earned value management; SAP Integration Suite (BTP) for middleware replacement; SAP Signavio and LeanIX for process/portfolio management; and references to SAP's 5-tier custom code retirement framework. The brief correctly identifies Clean Core as a strategic objective. However, SAP Activate phase mapping is incomplete: the brief references 'Phase 1' multiple times but never maps to Activate phases (Discover, Prepare, Explore, Realize, Deploy); no scope item codes or SAP package references are provided (e.g., GTS is noted but not tied to configuration/activation package structure); no mention of Activate governance bodies (Steering Committee, workstream leads) or decision gates. The methodology appears Activate-informed but not rigorously structured against Activate artifacts. The briefing also does not reference SAP methodology around scope rationalization (keep-standard vs. customize vs. extend) in a formal way \u2014 it is applied intuitively but not framed as 'Clean Core scope item 1.2.3' format that an SAP practitioner would expect. Estimated 80% SAP-aligned but lacking explicit Activate phase/gate structuring and scope item formalism."
+          "score": 5,
+          "reasoning": "Output demonstrates expert-level SAP methodology grounding: (1) Correctly positions RISE with SAP (S/4HANA Cloud Private Edition) as the deployment model aligned with parent company on Signavio/LeanIX adoption. (2) Explicitly references SAP Activate phases (Discover, Prepare) and names relevant SAP tools (Readiness Check 2.0, ATC, Integration Suite, Digital Manufacturing Cloud). (3) Correctly identifies RAR as a standalone S/4HANA module (not legacy FI revenue recognition logic). (4) Correctly scopes GTS as the foundational ITAR compliance module with sub-components (FI-GTS, MM-GTS, SD-GTS). (5) Clean Core maturity assessment uses SAP's official 4-level model and correctly diagnoses current state as Level D (heavy customization, no BTP strategy, custom middleware). (6) Correctly positions BTP side-by-side extensions as the target for business-differentiating customizations (satellite-specific logic, ITAR-specific workflows). (7) Correctly identifies Universal Journal as the enabler for 5-day close in S/4HANA. (8) Correctly names SAP IBP and SAP Ariba for supply chain and procurement requirements. (9) Scope item references throughout (FI-RAR, PP-PI, DMC, Integration Suite, SAC) demonstrate familiarity with actual S/4HANA component taxonomy. (10) The two-wave delivery approach with Wave 1 finance/compliance and Wave 2 operations is consistent with SAP Activate best practices for manufacturing complexity."
         }
       }
     },
@@ -179,13 +385,13 @@
       "run": 0,
       "method": "baseline",
       "total_cost_usd": 0.25,
-      "total_latency_ms": 276158,
+      "total_latency_ms": 284940,
       "per_skill_metrics": [
         {
           "skill": "combined",
           "input_tokens": 1426,
           "output_tokens": 16384,
-          "latency_ms": 276158,
+          "latency_ms": 284940,
           "cost_usd": 0.25,
           "tool_calls": 0,
           "retries": 0
@@ -194,19 +400,225 @@
       "judge_scores": {
         "completeness": {
           "score": 5,
-          "reasoning": "This deliverable is exceptionally comprehensive. It covers all critical scoping dimensions for a complex SAP S/4HANA transformation: client profile, current landscape assessment, integration architecture (15 interfaces explicitly mapped), detailed pain points (9 documented), regulatory requirements (5 regulations with specific phase placement), strategic drivers (7 stakeholders with prioritized mandates), target architecture with deployment rationale, key risks (7 risks with probability/impact/mitigation), discovery workshop requirements (8 workstreams), and module fit analysis spanning FI, CO, PS, MM, IBP, and SD with detailed S/4HANA advantages and CSS-specific value articulation. The discovery brief JSON structure provides metadata, client profile, current SAP landscape assessment with custom object quantification, integration landscape with specific system-by-system strategies, and clean core maturity assessment (Level D\u2192B). The module section systematically evaluates strategic relevance, current pain level, S/4HANA fit score, and implementation priority across financial and supply chain modules. No significant scoping gaps identified."
+          "reasoning": "This deliverable comprehensively covers all critical scoping dimensions for a high-tech aerospace manufacturer: client profile with multi-site footprint and regulatory complexity, current-state ERP/integration landscape, detailed pain points tied to specific business impacts, strategic drivers from multiple stakeholder levels, budget/timeline constraints, key assumptions, and risk registry. The JSON structure captures client context, the module fit analysis spans 8+ SAP modules with tiered priority, and Section 3 (visible in header but analysis cuts off) indicates budget validation. The discovery brief alone contains ~15 distinct pain points, 6 major integration systems, and 9 strategic drivers. Gaps in visible content are minimal\u2014financial model detail and Wave 0 deliverables appear truncated but are acknowledged as planned follow-ups."
         },
         "accuracy": {
           "score": 5,
-          "reasoning": "Module recommendations, timeline estimates, and SAP references demonstrate expert-level accuracy. FI assessment correctly identifies ACDOCA universal journal reducing close by 3-4 days (industry-standard expectation). RAR (Revenue Accounting and Reporting) is correctly prescribed for IFRS 15/ASC 606 compliance and is the accurate SAP solution for milestone-based revenue recognition in long-term contracts. PS with EVM activation is correctly positioned as native S/4HANA capability. MM assessment of MRP Live vs. batch ECC MRP is accurate; aATP (available-to-promise) is correct terminology. IBP recommendation to replace Anaplan is justified and accurate given native S/4HANA integration benefits. GTS (Global Trade Services) for ITAR/EAR compliance is the correct SAP product for export controls. BTP Integration Suite is correctly identified as the middleware replacement for custom interfaces. Clean Core target of Level B is realistic and well-scoped (40% retire, 30% remediate via BTP, 30% retain). 12-day close\u21925-day close target is achievable with universal journal and advanced closing cockpit. 18+ month lead time component tracking mapped to Predictive MRP and aATP is accurate. DFARS/CMMC mention for DoD contracts is appropriate for high-tech aerospace. No inaccurate SAP product names, feature misattributions, or unrealistic capability claims identified."
+          "reasoning": "Module recommendations are technically precise and grounded in S/4HANA specifics: Finance module correctly identifies Universal Journal as core differentiator vs. ECC, RAR for ASC 606/IFRS 15 milestone revenue is the correct solution, GTS for ITAR compliance is appropriately flagged as non-negotiable and critical. BOM integration architecture (eBOM\u2192MBOM via SAP Integration Suite) reflects real Siemens-SAP connector patterns. Custom code profile (2,400 objects, 40-60% rationalizable) aligns with realistic aerospace transformation data. Timeline estimates (36-42 months, Dec 2028 board deadline) are defensible for a phased multi-wave approach. References to S/4HANA-specific tools (ABAP Test Cockpit, Advanced Closing Cockpit, pMRP, Margin Analysis) are accurate. ECC maintenance end dates (2027 mainstream, 2030 extended) are correct. Parent company S/4HANA Cloud PE context is internally consistent. One minor note: Anaplan is retained short-term with IBP as long-term option\u2014this is a reasonable bridge strategy but the 'near-term' designation is somewhat vague on timing."
         },
         "actionability": {
           "score": 5,
-          "reasoning": "This deliverable is immediately actionable as a starting point for a real SAP consultant engagement. Section 1 (Structured Discovery Brief) is formatted as a JSON object enabling direct ingestion into project management tools, LeanIX, or data warehouses. The client profile includes specific details (2,500 employees, $1.2B revenue, 800 users, NAICS 336414) enabling rapid financial modeling and resource planning. Current landscape assessment quantifies custom objects (2,400 ABAP objects, 47 custom transactions, 15 interfaces) with explicit remediation targets (960 retire, 720 remediate, 720 retain), enabling immediate SAP Readiness Check scoping. Pain points are structured with ID, category, business impact, urgency, and specific S/4 resolution, enabling direct mapping to scope items and project workstreams. Regulatory requirements are tied to specific phases (ITAR/GTS in Phase 1, non-negotiable). Integration landscape maps each of 15 systems to a specific S/4HANA strategy (BTP Integration Suite, SAP PLM bridge, etc.), enabling integration architecture planning. Risk register with probability/impact/mitigation provides governance-ready documentation. Discovery workshops (8 workstreams) with duration and participant lists are ready to schedule. Module fit analysis provides decision criteria for Phase 1 Wave 1 vs. Phase 2 vs. Phase 3 prioritization. A consultant could use this to begin: (1) SAP Readiness Check planning, (2) LeanIX application portfolio setup, (3) ITAR compliance workstream kickoff, (4) integration architecture design sessions, (5) OCM stakeholder mapping, (6) budget refinement, (7) Activate roadmap drafting. Minor incompleteness noted: module section cuts off mid-SD narrative, but core recommendations are stated."
+          "reasoning": "This deliverable is immediately actionable for a SAP engagement team. The JSON-structured discovery brief can be imported into project tooling (Signavio, LeanIX, etc.). Module fit scores use a transparent weighted formula (need 35%, gap 25%, complexity 15%, strategic 25%) that could be reweighted by the client without rebuilding analysis. Each pain point is mapped directly to S/4HANA solution areas (e.g., PP-002 'BOM Integration Breakdown' \u2192 'S/4HANA Manufacturing / PLM Integration / SAP Integration Suite'). Risk mitigations are specific and implementable: 'Custom Code Assessment sprint in Wave 0,' 'GTS-specialized implementation partner,' 'Dedicated integration architecture sprint.' The BOM integration architecture diagram (though minimal) shows the data flow from Teamcenter through S/4HANA to Apriso with integration points explicitly marked. Budget guidance ($15-25M assessed as 'TIGHT BUT FEASIBLE') is actionable, as is the phased timeline (Q3 2025 start, concurrent Wave 1/Wave 2 structure). The deliverable could be presented to CSS executive steering committee or used to scope an RFP to SAP/implementation partners with only minor formatting additions."
         },
         "sap_grounding": {
           "score": 5,
-          "reasoning": "Recommendations are deeply grounded in SAP Activate methodology, SAP products, and Clean Core framework. Specific grounding: (1) Activate phases explicitly referenced (Phase 0 assessment, Phase 1 core finance+operations, Phase 2 manufacturing excellence, Phase 3 digital/AI); (2) Clean Core maturity model correctly cited with Level D (current, highly customized) and Level B target (standardized with approved BTP extensions); (3) Scope items use SAP standard terminology: ACDOCA (universal journal), Account-based COPA, Material Ledger, MRP Live, aATP, EVM (Earned Value Management), Milestone Billing, RAR (Revenue Accounting and Reporting), GTS (Global Trade Services), BTP Integration Suite, SAP Build Process Automation, SAP Analytics Cloud; (4) Custom code remediation methodology explicitly references SAP tooling: ABAP Test Cockpit (ATC), SAP Readiness Check, SAP Transformation Navigator; (5) System Conversion (Brownfield) approach is justified within SAP Activate framework; (6) BTP services cataloged correctly: Integration Suite, Extension Suite, Build Process Automation, Analytics Cloud, AI Business Services; (7) Adjacent solutions appropriately scoped: IBP, RAR, GTS, Project System with EVM, Digital Manufacturing, Signavio, LeanIX, GRC Access Control; (8) Discovery workshop structure aligns with Activate Discover phase; (9) Risk mitigation strategies reference SAP-specific practices (OCM governance model, early wins strategy, phased delivery); (10) Regulatory integration with SAP architecture (GTS Compliance Management for ITAR, RAR for IFRS 15, SAP Access Control for SOX); (11) Basis team augmentation explicitly tied to Cloud PE reducing post-go-live burden \u2014 reflects SAP deployment model strategy. No generic software implementation advice; all recommendations are grounded in SAP Activate, Clean Core, or SAP product-specific capabilities."
+          "reasoning": "Recommendations are deeply grounded in SAP Activate methodology and Clean Core strategy. GTS is correctly identified as a Phase 1 non-negotiable (not Wave 2 deferral), which reflects SAP compliance-first best practice. Custom code remediation references the Clean Core maturity model ('Level D - Heavily Customized - Brownfield Remediation Required') and ABAP Test Cockpit assessment tool, which are foundational SAP migration controls. The module fit analysis uses SAP's standard assessment dimensions and ties each module to specific SAP product capabilities (Universal Journal, Margin Analysis, pMRP, EVM in native PS, CPM, RAR, etc.). RAR for IFRS 15/ASC 606 is correctly flagged as the S/4HANA solution (not just FI customization). IBP is positioned for long-lead supply planning with integration to Anaplan as a bridge, reflecting SAP's IBP vs. external planning tool strategy. Integration strategy defaults to SAP Integration Suite + standard connectors (Salesforce, Siemens Teamcenter, Apriso MES) rather than custom middleware\u2014this is Clean Core thinking. The governance alignment to parent company S/4HANA Cloud PE (with Signavio/LeanIX adoption) reflects enterprise SAP program structure. Wave 0 contains prototype activities (BOM integration, custom code assessment, GTS scoping) which is consistent with SAP Activate Discover and Prepare phases."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-b-high-tech",
+      "run": 1,
+      "method": "pipeline",
+      "total_cost_usd": 1.9257,
+      "total_latency_ms": 571855,
+      "per_skill_metrics": [
+        {
+          "skill": "01",
+          "name": "Client Discovery Intake",
+          "input_tokens": 9315,
+          "output_tokens": 12028,
+          "latency_ms": 231738,
+          "cost_usd": 0.2084,
+          "tool_calls": 0,
+          "retries": 0
+        },
+        {
+          "skill": "02",
+          "name": "Module Fit Analyzer",
+          "input_tokens": 231504,
+          "output_tokens": 1326,
+          "latency_ms": 20404,
+          "cost_usd": 0.7144,
+          "tool_calls": 25,
+          "retries": 0
+        },
+        {
+          "skill": "03",
+          "name": "Implementation Roadmap",
+          "input_tokens": 241154,
+          "output_tokens": 860,
+          "latency_ms": 16042,
+          "cost_usd": 0.7364,
+          "tool_calls": 15,
+          "retries": 0
+        },
+        {
+          "skill": "04",
+          "name": "Executive Proposal Drafter",
+          "input_tokens": 26955,
+          "output_tokens": 12374,
+          "latency_ms": 303603,
+          "cost_usd": 0.2665,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 5,
+          "reasoning": "The output is exceptionally comprehensive. It covers all critical scoping dimensions for a complex SAP transformation: client profile with detailed business context, current landscape (ECC, adjacent systems, data), business requirements mapped to pain points and SAP modules, compliance/regulatory framework (ITAR, EAR, IFRS 15, SOX), transformation context with deployment rationale, timeline signals with wave structure, budget assessment, risk taxonomy, organizational change management, and detailed clarifying questions. Geographic footprint, ownership structure, competitive context, and industry-specific complexities (satellite manufacturing, ITAR controls, long-lead procurement) are all addressed. The output explicitly flags information gaps (missing currency exposure quantification, legal entity structure, middleware interface details, system versions) rather than glossing over them\u2014this demonstrates methodological rigor. No major scoping dimension has been omitted."
+        },
+        "accuracy": {
+          "score": 5,
+          "reasoning": "Module recommendations are accurate and well-justified: SAP GTS for ITAR/EAR (correct and appropriately flagged as non-negotiable), SAP Revenue Accounting and Reporting (RAR) for IFRS 15/ASC 606 (correct product name and use case), SAP Project System with EVM (accurate), SAP Engineering Control Center (ECTR) for Teamcenter integration (correct standard connector), SAP Integration Suite for middleware rationalization (correct architectural approach), SAP Integrated Business Planning (IBP) evaluation vs. Anaplan (appropriate strategic comparison). Timeline estimates align with industry norms: 34-month program window for brownfield conversion at this scale is realistic; wave structure (Wave 1 finance/compliance by Dec 2027, Wave 2 manufacturing by June 2028) is sequenced logically. SAP Clean Core classifications (Level D current \u2192 Level B target) and custom code remediation percentages (30-40% replaceable by standard S/4HANA, 25-35% BTP migration, etc.) are defensible and conservative. References to SAP methodology are accurate: Activate phases are implied through wave structure, scope items align with S/4HANA conversion best practices, the brownfield vs. greenfield vs. bluefield assessment is technically sound. No factual errors detected regarding SAP product capabilities or regulatory frameworks."
+        },
+        "actionability": {
+          "score": 5,
+          "reasoning": "This deliverable is immediately actionable as a scoping foundation. A real SAP consultant could present this directly to CSS stakeholders with minimal formatting. Specific, implementable next steps are provided: (1) clarifying questions are ranked by criticality and mapped to scope impact (e.g., 'middleware interface inventory affects 20-30% of technical workstream'), (2) wave structure provides a concrete sequence with durations and milestone dates that a project manager can load into a schedule, (3) custom code remediation approach names specific SAP tools (SAP Readiness Check, Cloud ALM Custom Code Analyzer), (4) compliance requirements are tied to specific module scopes (GTS scope items listed), (5) budget assessment identifies constraints and risk factors that can feed into a rebaselining conversation with the client, (6) change management risks are named explicitly rather than treated generically. The discovery brief could be used as-is for a kickoff presentation; the wave structure could be loaded into a program plan; the clarifying questions could be sent to the client immediately for Discover phase interviews. The output provides enough structure and specificity that rework would be primarily about formatting, not substance."
+        },
+        "sap_grounding": {
+          "score": 5,
+          "reasoning": "Recommendations are deeply grounded in SAP methodology and product specifics. SAP Activate is referenced implicitly through the wave structure (Foundation/Discover, Implementation, Deployment phases are embedded). Clean Core framework is used correctly: custom code maturity levels (Level D, Level B) are SAP-defined classifications; the assessment of 2,400 objects as Critical/Level D is accurate based on SAP Clean Core criteria; the remediation taxonomy (standard replaces, retire, BTP migrate, redesign) aligns with SAP Custom Code Migration methodology. Scope items are mapped to specific SAP solutions: GTS for ITAR (with details on commodity classification, deemed exports, audit trail\u2014these are GTS-specific functional areas), RAR for revenue recognition (specific to SAP's commercial solution for IFRS 15/ASC 606), ECTR for Teamcenter integration (standard SAP solution name), Integration Suite for middleware (correct architectural pattern), BTP for extensions (Clean Core-compliant extension approach). Deployment model recommendation (S/4HANA Cloud PE) is justified with SAP-specific rationale (PE supports residual customization migration, US data residency via PE infrastructure). The output uses correct SAP terminology: 'brownfield' vs. 'greenfield' vs. 'bluefield', 'system conversion' vs. 'selective data migration', 'Clean Core maturity levels', 'BTP Extension Suite', 'universal journal'. References to SAP Cloud ALM, SAP Readiness Check, SAP Project System EVM, SAP Financial Closing Cockpit, SAP IBP are all accurate product names and use cases. The output demonstrates that the author understands SAP's transformation playbook, not just generic ERP best practices."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-b-high-tech",
+      "run": 1,
+      "method": "baseline",
+      "total_cost_usd": 0.25,
+      "total_latency_ms": 289249,
+      "per_skill_metrics": [
+        {
+          "skill": "combined",
+          "input_tokens": 1426,
+          "output_tokens": 16384,
+          "latency_ms": 289249,
+          "cost_usd": 0.25,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 5,
+          "reasoning": "The deliverable comprehensively covers all critical scoping dimensions: client profile (industry, sites, financials), current landscape (ERP, integrations, basis team), detailed pain points (9 PPs across technical/compliance/operational domains), strategic objectives (7 SOs with clear owners), regulatory frameworks (ITAR/EAR/SOX/IFRS 15), transformation approach (migration path rationale, deployment model, clean core strategy), key risks (7 Rs with mitigation), module fit analysis (19 modules scored with business relevance/current gap/S/4 uplift/impl risk), and detailed module assessments for critical areas. No significant gaps in scope definition for a brownfield conversion engagement."
+        },
+        "accuracy": {
+          "score": 5,
+          "reasoning": "The technical and SAP recommendations are expert-level accurate: (1) Universal Journal/ACDOCA correctly positioned for FI/CO convergence and close cycle reduction (12\u21923-4 days is realistic); (2) GTS scope for ITAR/EAR compliance is precise (sanctioned party screening, legal control, license determination, US data residency in Private Edition); (3) RAR configuration tied to PS milestones for IFRS 15/ASC 606 is correct integration pattern; (4) IBP for supply chain with 18+ month lead time visibility is appropriate use case; (5) Clean Core methodology (ATC, custom code factory, BTP extensibility) follows SAP Activate guidance; (6) Private Edition selected for US ITAR data sovereignty is correct technical choice; (7) Fit scores (90-100 for critical modules) and wave placement are reasonable. No material errors detected."
+        },
+        "actionability": {
+          "score": 5,
+          "reasoning": "This deliverable is ready for immediate use by a SAP implementation team: (1) Discovery brief JSON is structured for intake into Signavio/LeanIX; (2) Pain points are mapped to specific S/4HANA solutions (PP-02\u2192S/4 BOM management, PP-03\u2192GTS, PP-05\u2192RAR, etc.); (3) Module fit scores provide clear prioritization with wave placement (Wave 1 vs. Wave 2); (4) Risk mitigations are actionable (e.g., 'Custom Code Factory started in Month 1', 'GTS parallel run until fully validated'); (5) Financial close roadmap provides concrete targets (12\u21925 days) with activity breakdown; (6) Integration strategy for Teamcenter/MES/Salesforce/Workday specifies migration approach per system; (7) Board timeline (Dec 2028) is decomposed into phases (Pre-Conversion M1-6, Wave 1 M7-18, Wave 2 M19-30). A consultant could immediately begin scoping workshops and resource planning from this."
+        },
+        "sap_grounding": {
+          "score": 5,
+          "reasoning": "The deliverable demonstrates deep SAP methodology grounding: (1) System Conversion (Brownfield) vs. Greenfield decision is framed using SAP Activate principles (data preservation, existing process investment, timeline feasibility); (2) Clean Core maturity model (Level D\u2192B) with specific ATC/Readiness Check references and custom code factory approach follows SAP guidance; (3) Universal Journal (ACDOCA table) correctly identified as core S/4HANA capability; (4) Private Edition deployment rationale explicitly cites parent mandate alignment and ITAR data residency requirements\u2014showing understanding of deployment model trade-offs; (5) Wave structure and scope management discipline reflect SAP Activate phased delivery approach; (6) GTS Full Suite scope (Legal Control, License Determination, Embargo Management) shows detailed knowledge of SAP trade compliance functionality; (7) Integration Suite (replacing 12 custom middlewares) is positioned as SAP iPaaS standard; (8) RAR integration with PS for milestone-based revenue recognition is correct S/4HANA pattern; (9) IBP for demand sensing and supply chain planning is properly scoped. References to SAP Signavio, LeanIX, BTP, and SAC show awareness of extended SAP ecosystem beyond core ERP."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-b-high-tech",
+      "run": 2,
+      "method": "pipeline",
+      "total_cost_usd": 2.0804,
+      "total_latency_ms": 617341,
+      "per_skill_metrics": [
+        {
+          "skill": "01",
+          "name": "Client Discovery Intake",
+          "input_tokens": 9315,
+          "output_tokens": 14859,
+          "latency_ms": 283998,
+          "cost_usd": 0.2508,
+          "tool_calls": 0,
+          "retries": 0
+        },
+        {
+          "skill": "02",
+          "name": "Module Fit Analyzer",
+          "input_tokens": 247990,
+          "output_tokens": 1356,
+          "latency_ms": 20823,
+          "cost_usd": 0.7643,
+          "tool_calls": 25,
+          "retries": 0
+        },
+        {
+          "skill": "03",
+          "name": "Implementation Roadmap",
+          "input_tokens": 258587,
+          "output_tokens": 1333,
+          "latency_ms": 21435,
+          "cost_usd": 0.7958,
+          "tool_calls": 25,
+          "retries": 0
+        },
+        {
+          "skill": "04",
+          "name": "Executive Proposal Drafter",
+          "input_tokens": 29786,
+          "output_tokens": 12008,
+          "latency_ms": 291025,
+          "cost_usd": 0.2695,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 5,
+          "reasoning": "Exceptionally comprehensive coverage across all critical scoping dimensions. The output addresses: client profile (detailed geographic footprint, ownership, growth trajectory), current landscape (ERP system details, customization debt, adjacent systems, data quality), business requirements (8 primary drivers, 8 process pain points with SAP module mapping, 10 must-haves, nice-to-haves, explicit exclusions), compliance/regulatory frameworks (ITAR/EAR, IFRS 15/ASC 606, SOX, industry standards), and transformation context (conversion approach, deployment preference, Clean Core readiness assessment). Notably includes metadata with 10 'IMPORTANT' and 8 'HELPFUL' missing information flags, 10 clarifying questions, and detailed rationale for each recommendation. The discovery brief also proactively identifies risks (data residency for ITAR, failed prior projects as organizational sensitivity, BOM integration as critical clean core risk). No significant scoping dimensions are omitted."
+        },
+        "accuracy": {
+          "score": 5,
+          "reasoning": "Expert-level accuracy demonstrated throughout. ITAR/EAR/USML Category XV reference for satellites is correct. IFRS 15/ASC 606 revenue recognition requirements for long-term contracts are accurately characterized. SAP module assignments are precise (FI-RA for revenue accounting, GTS for export compliance, PS/CO for profitability, PP/DS for manufacturing). SAP Activate phase estimates (3-4 months Discover/Prepare, 12-14 months Explore/Realize Wave 1, 10-12 months Realize/Deploy Wave 2) align with industry benchmarks for this scale/complexity. System Conversion methodology reference and SAP Software Update Manager (SWPM) are correct. Clean Core maturity levels (A-D framework) are authentic SAP taxonomy. BTP/Integration Suite as replacement for custom middleware is the correct modern SAP architectural pattern. S/4HANA Cloud Private Edition with US data center requirement for ITAR compliance is accurate and critical. ECC 6.0 EHP8 mainstream maintenance end 2027, extended to 2030, is correct per SAP support roadmap. No factual errors detected."
+        },
+        "actionability": {
+          "score": 5,
+          "reasoning": "This deliverable is immediately actionable as a starting point for real SAP consulting engagement. It provides: (1) Specific SAP tools/products to use (SAP Custom Code Migration Worklist, SAP Transformation Navigator, SAP Financial Closing Cockpit, SAP BTP ABAP Test Cockpit), (2) Quantified workload estimates (~2,460 custom objects to assess, ~1,440 to retire/replace for 60% reduction target), (3) Phased timeline with specific scope allocation (Wave 1: Finance/GTS/Core Operations Q3 2028; Wave 2: Manufacturing/Supply Chain Q4 2028/Q1 2029), (4) Prioritized risk mitigation (custom code analysis as immediate longest-lead item, ITAR/GTS as Phase 1 non-negotiable), (5) Concrete clarifying questions with business context (e.g., 'What is the current Teamcenter-SAP BOM integration architecture?' with acknowledgment that PLM migration project failed), (6) Data residency contractual requirements to be confirmed with SAP before go/no-go. A consulting team could immediately use this to structure discovery calls, prioritize technical workstreams, and prepare for Explore phase. Only formatting/visualization improvements are needed; no material rework required."
+        },
+        "sap_grounding": {
+          "score": 5,
+          "reasoning": "Deeply grounded in SAP methodology and products. References include: SAP Activate framework and specific phase structure (Discover/Prepare, Explore, Realize, Deploy, Run), System Conversion methodology with SWPM, Clean Core maturity levels (A-D) aligned with SAP's official framework, specific SAP products (S/4HANA Cloud Private Edition, GTS, PS, PP/DS, CO-PA, FI-RA, IBP, Integration Suite, BTP, Financial Closing Cockpit, SAP Analytics Cloud, LeanIX, Signavio), SAP Custom Code Migration Worklist and ATC tools for code analysis. The output correctly distinguishes between SAP modules (FI, CO, MM, SD, PP, QM, PM, PS, GTS) and accurately maps business requirements to scope items (e.g., BOM integration requires PP, PLM integration layer, and QM). The architectural recommendation to use SAP Integration Suite/BTP for MES integration instead of custom middleware is standard SAP modernization guidance. Data residency considerations and the note that 'shared public cloud is likely non-compliant for ITAR-controlled technical data' demonstrates understanding of SAP Cloud infrastructure constraints. The recommendation against S/4HANA Cloud Public Edition (citing insufficient module depth for aerospace manufacturing, specific omission of PS/PP/DS/GTS full scope in GROW edition) reflects genuine SAP product knowledge. No generic or non-SAP-specific language detected."
+        }
+      }
+    },
+    {
+      "scenario": "scenario-b-high-tech",
+      "run": 2,
+      "method": "baseline",
+      "total_cost_usd": 0.25,
+      "total_latency_ms": 287042,
+      "per_skill_metrics": [
+        {
+          "skill": "combined",
+          "input_tokens": 1426,
+          "output_tokens": 16384,
+          "latency_ms": 287042,
+          "cost_usd": 0.25,
+          "tool_calls": 0,
+          "retries": 0
+        }
+      ],
+      "judge_scores": {
+        "completeness": {
+          "score": 5,
+          "reasoning": "This deliverable covers all critical scoping dimensions comprehensively. It includes: (1) detailed client profile with multi-site structure, (2) current-state technical landscape (ECC 6.0, 2,400 custom objects, 12 middleware interfaces), (3) integrated systems assessment (PLM, MES, CRM, HCM, GTS), (4) pain points across technical/business/organizational dimensions with severity ratings, (5) strategic objectives mapped to business owners, (6) regulatory/compliance context (ITAR, EAR, IFRS 15, SOX, DCAA), (7) transformation approach recommendation with rationale, (8) Clean Core assessment, (9) module-by-module fit analysis with scoring, (10) discovery questions prioritized by criticality. No significant gaps in scope coverage. The deliverable even identifies new capabilities (EWM, IBP) and addresses parent alignment considerations."
+        },
+        "accuracy": {
+          "score": 5,
+          "reasoning": "Technical recommendations are accurate and expert-level: (1) ECC 6.0 mainstream maintenance end 2027, extended 2030 is correct per SAP lifecycle. (2) Universal Journal (ACDOCA) correctly described as eliminating FI-CO reconciliation. (3) Revenue Accounting and Reporting (RAR) module correctly identified as the S/4HANA native solution for IFRS 15/ASC 606 milestone-based revenue recognition \u2014 not a workaround, a built-in capability. (4) Margin Analysis correctly identified as CO-PA replacement in S/4HANA. (5) SAP Extended Warehouse Management (EWM) capabilities correctly described. (6) Integrated Business Planning (IBP) positioning as Phase 2 with Anaplan coexistence is reasonable. (7) System conversion (brownfield) vs. greenfield rationale is sound given 10-year ECC history and $15-25M budget constraint. (8) S/4HANA Cloud Private Edition deployment model correctly assessed for ITAR compliance (single-tenant, US-region residency). (9) ITAR/GTS compliance framing is accurate \u2014 DDTC authority, USML Category XV, civil/criminal penalty exposure. (10) Module scope (FI/CO/MM/SD/PP/QM/PM/PS) matches client active modules. No factual errors detected."
+        },
+        "actionability": {
+          "score": 5,
+          "reasoning": "This is immediately actionable as a scoping foundation for real SAP implementation. A consultant could use this as the basis for: (1) Phase 0 discovery roadmap \u2014 the 12 prioritized discovery questions are P0/P1-labeled and address critical unknowns (CCMW analysis, GTS scope, EBOM-MBOM integration). (2) Module selection \u2014 the fit analysis provides 10/10 scores for mandatory modules (FI, CO, MM) and 7-8/10 scores for new capabilities (EWM, IBP) with clear business justification. (3) Risk mitigation \u2014 technical debt assessment (2,400 custom objects, 12 middleware interfaces) is quantified and ties to timeline/cost. (4) Workstream planning \u2014 Clean Core Level D\u2192B maturation is explicitly stated with estimates (60% reduction, 40-60% of custom code requires remediation). (5) Governance \u2014 strategic objectives are mapped to business owners (Board, CEO, CFO, CISO) with success metrics. (6) Stakeholder communication \u2014 organizational pain points and change fatigue context is documented, enabling OCM positioning. The deliverable is ready to present to a steering committee with minimal formatting adjustments. A SAP architect could immediately launch Phase 1 detailed design using this as the scoping baseline."
+        },
+        "sap_grounding": {
+          "score": 5,
+          "reasoning": "Recommendations are grounded in SAP methodology and Clean Core doctrine throughout: (1) System Conversion (Brownfield) approach is explicitly positioned as SAP Activate phase-aware strategy vs. greenfield reimplementation. (2) Clean Core maturity model is applied correctly \u2014 client assessed at Level D (Red) with target Level B (Green), aligned to SAP's Clean Core guidance (Level A = zero customization aspirational; Level B = SAP-compliant extensions via BAdIs/APIs only). (3) Selective Data Migration variant mentioned within System Conversion framework. (4) ABAP Test Cockpit (ATC) and Custom Code Migration Worklist (CCMW) are correctly named as the SAP-native tools for brownfield code assessment (not generic); 40-60% remediation estimate aligns with SAP guidance. (5) S/4HANA core module positioning: Universal Journal (ACDOCA), Revenue Accounting and Reporting (RAR), Margin Analysis, Material Ledger, Actual Costing \u2014 all are SAP S/4HANA-specific innovations correctly differentiated from ECC equivalents. (6) Advanced Available-to-Promise (aATP) is SAP S/4HANA native capability, not ECC. (7) Predictive MRP (ML-based) positioning aligns with SAP Activate Phase 2 value-add capabilities. (8) Parent ecosystem adoption (Signavio, LeanIX, SAP IBP) is grounded in parent mandate context, not generic recommendation. (9) SAP Business Network reference for supplier collaboration is appropriate for supply chain modernization. (10) Deployment model (S/4HANA Cloud Private Edition) is justified against ITAR compliance requirements (single-tenant, data residency) \u2014 a nuanced SAP-specific consideration. (11) Discovery questions reference SAP-specific artifacts (CCMW, GTS components: SPL, license determination, customs management) indicating deep SAP knowledge. No generic ERP platitudes; consistently SAP-centric recommendations with module precision."
         }
       }
     }
@@ -215,38 +627,38 @@
     {
       "scenario": "scenario-a-agribusiness",
       "method": "baseline",
-      "runs": 1,
-      "mean_score": 3.75,
-      "stddev": 0.0,
-      "consistency_score": null,
-      "note": "only 1 run \u2014 consistency not computable"
+      "runs": 3,
+      "mean_score": 4.25,
+      "stddev": 0.54,
+      "consistency_score": 2,
+      "note": null
     },
     {
       "scenario": "scenario-a-agribusiness",
       "method": "pipeline",
-      "runs": 1,
+      "runs": 3,
       "mean_score": 4.25,
-      "stddev": 0.0,
-      "consistency_score": null,
-      "note": "only 1 run \u2014 consistency not computable"
+      "stddev": 0.54,
+      "consistency_score": 2,
+      "note": null
     },
     {
       "scenario": "scenario-b-high-tech",
       "method": "baseline",
-      "runs": 1,
+      "runs": 3,
       "mean_score": 5.0,
       "stddev": 0.0,
-      "consistency_score": null,
-      "note": "only 1 run \u2014 consistency not computable"
+      "consistency_score": 5,
+      "note": null
     },
     {
       "scenario": "scenario-b-high-tech",
       "method": "pipeline",
-      "runs": 1,
-      "mean_score": 3.75,
+      "runs": 3,
+      "mean_score": 5.0,
       "stddev": 0.0,
-      "consistency_score": null,
-      "note": "only 1 run \u2014 consistency not computable"
+      "consistency_score": 5,
+      "note": null
     }
   ],
   "pairwise": [
@@ -258,26 +670,116 @@
       "dimensions": {
         "completeness": {
           "winner": "baseline",
-          "quote": "# SECTION 2: MODULE FIT ANALYSIS\n## 2.1 Platform Recommendation \u2014 Critical Upfront Assessment\n> \u26a0\ufe0f **IMPORTANT ADVISORY FLAG \u2014 READ BEFORE MODULE ANALYSIS**\nBefore scoping SAP S/4HANA modules, this analysis must flag a fundamental platform suitability question",
-          "reasoning": "Response A delivers structured module recommendations across Financial Accounting, Inventory Management, Purchasing, Sales/Export, Quality Management, and Integration architecture with specific fit scores and priority sequencing. Response B is a discovery intake document that explicitly flags missing information (58% completeness) and poses clarifying questions rather than delivering scoped modules. While Response B's critical-gap identification is valuable, Response A actually completes the scoping deliverable with module recommendations, whereas Response B stops at the intake phase. For a scoping deliverable (not a discovery questionnaire), Response A covers substantially more territory."
+          "quote": "Response A: 'Pain Points' section identifies 6 specific numbered pain points (PP-01 through PP-06) each with id, title, description, business_impact, regulatory_driver, and priority rating. Response B: Lists pain points as narrative process areas without structured prioritization or quantified business impact.",
+          "reasoning": "Response A provides a structured, comprehensive pain point inventory with explicit P1/P2 prioritization and regulatory drivers linked to each. It also covers all critical scoping dimensions: discovery brief, platform recommendation, module fit analysis, integration requirements, data migration, and constraints. Response B is incomplete\u2014it cuts off mid-section ('EU buyers are explicitly mentioned; EU food-safety traceability paperwork is explicitly stated as a pain point; EC 178/2002 requires one-step-back one-step-forward traceability for all food products entering') and lacks a complete module recommendation or fit analysis. Response A explicitly recommends SAP Business One Cloud Edition with full rationale; Response B flags the revenue gap as critical but does not conclude with a platform recommendation."
         },
         "accuracy": {
           "winner": "baseline",
-          "quote": "Multi-Currency Support: TZS, USD, EUR, CAD, KRW, INR with automatic exchange rate management... Unrealised/realised FX gain/loss automated calculation and posting... EU traceability compliance: SAP B1 batch management natively supports the 'one step forward, one step back' requirement of EC 178/2002",
-          "reasoning": "Response A correctly grounds recommendations in SAP product capabilities: SAP B1 batch traceability for EC 178/2002 compliance is accurate; multi-currency FX automation in SAP B1 Financials is correct; the platform comparison (B1 vs. GROW vs. S/4HANA Private) is technically sound. Response B makes no module or technical recommendations\u2014it only flags gaps. However, Response B's statement that 'annual revenue range [is] the single most important factor for SAP product-tier selection' is strategically sound but not a technical accuracy claim about module functionality. Response A provides verifiable technical accuracy; Response B provides methodological accuracy about discovery but no module claims to evaluate."
+          "quote": "Response A: 'SAP Business One Cloud Edition as primary; SAP GROW S/4HANA Public Cloud as escalation path' with explicit platform comparison table showing cost estimates ($80K\u2013160K for B1, $400K\u2013800K+ for Enterprise) and timeline (4\u20138 months vs. 18\u201324 months). Response B: '[UNKNOWN \u2014 CRITICAL GAP: Required for product-tier selection]' states revenue is missing but does not provide alternative platform recommendations or cost/timeline guidance.",
+          "reasoning": "Response A makes concrete, defensible recommendations grounded in SAP product positioning and cost realism for a mid-market agribusiness. It accurately identifies that S/4HANA Enterprise is over-engineered and proposes B1 as fit-for-purpose with a clear upgrade path. Response B correctly identifies critical information gaps (revenue, timeline, budget) but does not provide fallback recommendations or accuracy-qualified guidance. Response A's regulatory mapping (EU EUDR 2023/1115, FSSC 22000, FSMA FSVP) is more precise than Response B's placeholder language ('INFERRED' throughout). Response A also correctly notes that African mobile money operators lack native S/4HANA connectors, requiring BTP middleware\u2014a technically accurate constraint."
         },
         "actionability": {
           "winner": "baseline",
-          "quote": "### MODULE 1: Financial Accounting & Multi-Currency (SAP B1: Financials)\n| Attribute | Detail |\n|---|---|\n| **Relevance Rating** | \u2b50\u2b50\u2b50\u2b50\u2b50 5/5 |\n| **Fit Score** | \u2b50\u2b50\u2b50\u2b50\u2b50 5/5 |\n| **Priority** | Phase 1 \u2014 Core Foundation |",
-          "reasoning": "Response A provides explicit module prioritization (Phase 1, Phase 2), fit scores, gap assessments, and configuration notes (e.g., 'mobile money disbursements should be configured as a bank account clearing ledger'). A consultant could take these recommendations directly into design workshops. Response B provides a discovery template with 10 clarifying questions that must be answered before module scoping begins. Response B is a prerequisite to actionability but is not itself actionable as a scoping deliverable. Response A is immediately actionable for detailed design; Response B requires a follow-up discovery workshop."
+          "quote": "Response A: Section 2.2 'Module Fit Analysis' begins immediately with structured module-by-module fit scores (Relevance Rating, Fit Score 0\u2013100, Recommendation). For Financial Accounting: '\u2b50\u2b50\u2b50\u2b50\u2b50 (5/5 \u2014 Critical) | 92/100 | \u2705 Include \u2014 Core' with clear 'Scope for Highland Harvest:' callouts. Response B: Ends mid-sentence in the 'compliance_and_regulatory' section without any module recommendations, fit scoring, or implementation roadmap.",
+          "reasoning": "Response A provides a consultant with immediately actionable deliverables: a ranked platform choice with cost/timeline, module-by-module scoping decisions, integration architecture (BTP for mobile money), and data migration strategy. A consultant could use this as a starting point for a work plan with minimal rework. Response B is incomplete\u2014it identifies what information is missing but does not provide a recommended path forward. While Response B's gap analysis is useful for clarifying questions, it leaves the consultant without a baseline recommendation, platform choice, or module scope to work from. Response A's explicit recommendation of SAP B1 over S/4HANA Enterprise (justified by company size, budget, timeline) is immediately actionable guidance; Response B flags the revenue gap but offers no fallback."
         },
         "sap_grounding": {
           "winner": "baseline",
-          "quote": "For the remainder of this analysis, modules are scoped assuming **SAP Business One Cloud as primary platform with SAP BTP for integration**, with notes where GROW with SAP offers equivalent functionality. Module names reflect SAP B1 module architecture, with S/4HANA equivalents noted... Batch/lot management is robust for this use case... SAP B1 batch traceability natively supports the 'one step forward, one step back' requirement of EC 178/2002.",
-          "reasoning": "Response A grounds recommendations in SAP-specific methodology: it references SAP Clean Core implicitly (BTP integration for mobile money rather than deep customization), compares product tiers against SAP Activate deployment models (4\u20136 month for GROW vs. longer for others), and cites SAP module codification (FI, MM, SD, QM). Response B references 'SAP Industry Code: CP' and 'BTP integration' but does not scope actual SAP modules or reference Activate methodology, Clean Core principles, or implementation sequencing aligned to SAP best practices. Response A is substantially more grounded in SAP-specific architecture and governance."
+          "quote": "Response A: 'Platform Recommendation: SAP Business One Cloud Edition as primary; SAP GROW S/4HANA Public Cloud as escalation path' with explicit rationale: 'SAP Business One delivers 90%+ of Highland Harvest's functional requirements at 25\u201335% of the cost and in 40\u201350% of the timeline of S/4HANA Enterprise' and 'migration path to SAP GROW or S/4HANA exists without data loss.' Also references 'SAP BTP Integration Suite' and 'Clean Core' principles (implied via 'open API layer'). Response B: References 'SAP S/4HANA Cloud Public Edition via GROW' and 'BTP' but without SAP-specific deployment or methodology context.",
+          "reasoning": "Response A demonstrates grounding in SAP methodology by: (1) explicitly recommending SAP Business One as fit-for-purpose rather than defaulting to Enterprise, (2) naming SAP BTP Integration Suite as the integration mechanism, (3) discussing migration paths that respect SAP product architecture, and (4) using SAP module nomenclature (FI, MM, SD, CO, GTS) in the module fit analysis section. It also implicitly applies Clean Core principles by recommending greenfield go-live with opening balances only (no historical data migration). Response B references SAP products by name but does not ground recommendations in SAP methodology\u2014it primarily lists gaps and asks clarifying questions. While Response B's clarification questions are thorough, they lack the SAP-specific methodological lens (e.g., no mention of Activate, scope items, or product fit frameworks that SAP consultants use). Response A's module fit table structure (Relevance Rating, Fit Score, Recommendation) aligns with SAP scoping disciplines; Response B does not reach that level of SAP-grounded assessment."
         }
       },
       "scenario": "scenario-a-agribusiness",
+      "run": 0
+    },
+    {
+      "assignment": {
+        "A": "pipeline",
+        "B": "baseline"
+      },
+      "dimensions": {
+        "completeness": {
+          "winner": "pipeline",
+          "quote": "Missing information flags list includes critical gaps (annual revenue, go-live date, user count, budget, IT infrastructure, certifications, EU compliance details, sponsor identification, station count, export volume) systematically organized by CRITICAL/IMPORTANT/HELPFUL priority levels",
+          "reasoning": "Response A provides 13 explicitly flagged missing information gaps, each with business justification, and organizes them by severity. Response B mentions some contextual questions but lacks systematic documentation of critical unknowns that would determine product fit (e.g., annual revenue explicitly called out by A as 'the single most important variable for product fit' is never addressed in B). A's discovery brief identifies the revenue question as directly determining whether Business One, GROW, or S/4HANA is appropriate\u2014a foundational decision B does not explicitly address in terms of missing data."
+        },
+        "accuracy": {
+          "winner": "pipeline",
+          "quote": "GTS to be recommended in Phase 2 if volume justifies... EU buyers are citing food-safety traceability requirements consistent with Regulation (EC) No 178/2002 \u2014 'one step back, one step forward' traceability. This is achievable with standard SAP batch management without GTS.",
+          "reasoning": "Response A correctly identifies that full SAP GTS is over-scoped for a 65-person company and correctly maps traceability to standard batch management (MM-IM, WM, QM) which is the right technical approach. Response A also correctly cites EC No 178/2002 and specifically explains the 'one step back, one step forward' principle. Response B recommends 'SAP Business One (Cloud Edition) via SAP GROW, NOT full S/4HANA Enterprise' but then the response cuts off before detailing module fit, leaving accuracy assessment incomplete. Response A's module mapping (FI-GL, MM-PUR, WM, QM, SD-FT) is more precisely grounded in regulatory and operational specifics."
+        },
+        "actionability": {
+          "winner": "pipeline",
+          "quote": "Process pain points table with: current_state, desired_state, impact level, sap_module_relevance, and clean_core_note columns provides direct mapping from business problem \u2192 SAP module \u2192 implementation approach",
+          "reasoning": "Response A provides a structured pain-point-to-module matrix (7 rows: Batch Traceability \u2192 MM-IM/WM/QM; Multi-Currency \u2192 FI-GL/FI-AP/CO-PA; Export Docs \u2192 SD-FT/GTS; etc.) with explicit 'clean_core_note' callouts stating 'Standard SAP batch management covers this requirement; no customization should be required.' This directly guides a consultant on scope boundaries and non-customization. Response B begins the module analysis but cuts off at the platform recommendation section and does not complete module fit scoring, making it less actionable as a starting point for detailed scoping."
+        },
+        "sap_grounding": {
+          "winner": "pipeline",
+          "quote": "Clean Core principle explicitly applied: 'Standard SAP batch management covers this requirement; no customization should be required' and 'SAP standard multi-currency FI is a core platform capability \u2014 zero customization required' and recommended exclusion of 'Full SAP GTS in Phase 1 \u2014 cost-prohibitive for company size'",
+          "reasoning": "Response A explicitly invokes SAP Clean Core principles by (1) flagging which capabilities are standard (batch traceability, multi-currency FI) vs. requiring extension (mobile money BTP Integration Suite), (2) recommending against GTS as Phase 1 scope, and (3) identifying BTP Extension as the correct pattern for mobile money integration. Response B recommends Business One via GROW (correct), but the response is truncated before detailing how Activate methodology, scope items, or Clean Core principles will be applied to module fit. Response A demonstrates deeper SAP methodology grounding through explicit scope boundaries and standard-vs-custom differentiation."
+        }
+      },
+      "scenario": "scenario-a-agribusiness",
+      "run": 1
+    },
+    {
+      "assignment": {
+        "A": "baseline",
+        "B": "pipeline"
+      },
+      "dimensions": {
+        "completeness": {
+          "winner": "baseline",
+          "quote": "Response A: 'Before scoping modules, a candid platform assessment is essential for a client of this profile' [followed by detailed platform comparison table]. Response B: 'CRITICAL: Annual revenue range not provided \u2014 single most important variable for product fit decision'",
+          "reasoning": "Response A delivers a complete, decision-ready scoping deliverable with explicit module recommendations, integration architecture, and deployment guidance. It addresses all major dimensions: discovery, module fit, platform selection, and implementation constraints. Response B, while thorough in identifying gaps, is structured as a discovery framework with many unresolved 'CRITICAL' and 'IMPORTANT' flags. Response B correctly highlights that revenue and budget are missing, but it does not produce actionable scoping\u2014it produces a list of questions. For a real SAP consultant, Response A is immediately usable as a starting point; Response B requires completion of the discovery process first."
+        },
+        "accuracy": {
+          "winner": "baseline",
+          "quote": "Response A: 'MM-IM Batch Management [score] 9/10 \u2014 Kernel-grade lot assignment from goods receipt through grading to container. Full upstream/downstream batch traceability for EU food-safety compliance.' Response B: [Acknowledges batch traceability requirement but] 'estimated_data_volume: Low-to-Medium [INFERRED...]' with no specific module recommendation scores or accuracy assertions.",
+          "reasoning": "Response A makes specific, verifiable SAP module claims: MM (Materials Management), FI (Financial Accounting), CO (Controlling), SD (Sales & Distribution), QM (Quality Management), EWM, DMS, and BTP Integration Suite are all correctly mapped to agribusiness processes. It correctly identifies that batch management is critical for EU food-safety compliance (EC 178/2002) and EUDR. Response B does not commit to module recommendations\u2014it flags missing information. While Response B's caution is reasonable, Response A's recommendations are consistent with SAP best practices for agricultural commodity trading. No factual errors detected in Response A; Response B contains no false claims but provides no verified recommendations."
+        },
+        "actionability": {
+          "winner": "baseline",
+          "quote": "Response A: 'Recommendation: Proceed with SAP GROW (S/4HANA Cloud Public Edition) as the primary scoping basis, with SAP Business One documented as a cost-optimised alternative...' [followed by detailed module fit table with scores, justifications, and exclusions]. Response B: 'data_completeness_score: 58%' and 'missing_information_flags: [list of 10 critical/important gaps]'",
+          "reasoning": "Response A provides concrete next steps: platform selected (SAP GROW primary, SAP Business One alternative), modules prioritized by fit score (FI, MM, SD, QM, MM-IM Batch all 9/10), BTP extensions specified (mobile money, Fiori app, EUDR geospatial, SAC analytics), and organizational risks flagged (change management critical). A consultant could walk into a kickoff meeting with this deliverable and begin configuration. Response B stops short of a recommendation\u2014it identifies that annual revenue, budget, and user concurrency are unknowns, and therefore cannot finalize product fit. This is methodologically sound but operationally incomplete. For a real engagement, Response A enables work to proceed; Response B triggers a discovery extension."
+        },
+        "sap_grounding": {
+          "winner": "baseline",
+          "quote": "Response A: 'Batch Management / Traceability: MM-IM Batch Management [9/10]' with specific EU regulatory drivers cited: 'EC Regulation 178/2002 (General Food Law) requires full farm-to-port traceability' and 'EUDR (Regulation EU 2023/1115) requires geolocation and supply chain documentation effective December 2024.' Also: 'SAP BTP Integration Suite iFlow to map payment confirmation messages \u2192 SAP vendor payment posting.' Response B: 'sap_module_relevance: [MM-PUR, FI-AP, BTP (mobile money payment integration)]' but without SAP-specific detail or Clean Core methodology invocation.",
+          "reasoning": "Response A explicitly invokes SAP Activate methodology concepts (Clean Core, BTP side-by-side extensions, standard module configuration), SAP product nomenclature (S/4HANA Cloud Public Edition / GROW, SAP Business One, SAP Analytics Cloud, SAP BTP Integration Suite, Fiori), and Clean Core integrity principles ('This should be handled as a BTP side-by-side extension, not a core modification, to preserve Clean Core integrity'). It demonstrates familiarity with SAP's modern implementation philosophy and cloud-first strategy. Response B uses SAP terminology (MM, SD, QM, GTS, BTP, Signavio, LeanIX) but does not ground recommendations in SAP methodology\u2014it frames the work as discovery-incomplete, not as a methodologically rigorous scoping output. Response A reads as written by someone versed in SAP deployment patterns; Response B reads as a thorough but non-SAP-specific requirements analysis."
+        }
+      },
+      "scenario": "scenario-a-agribusiness",
+      "run": 2
+    },
+    {
+      "assignment": {
+        "A": "pipeline",
+        "B": "baseline"
+      },
+      "dimensions": {
+        "completeness": {
+          "winner": "pipeline",
+          "quote": "IMPORTANT: Currency scope for European supplier transactions not confirmed (USD primary \u2014 EUR likely but unverified)... IMPORTANT: Parent conglomerate integration requirements not fully specified... IMPORTANT: ITAR-controlled programs inventory not provided... [10 clarifying questions provided]",
+          "reasoning": "Response A explicitly identifies 9 missing information flags with 10 detailed clarifying questions, forcing early resolution of critical unknowns (parent consolidation, ITAR inventory, contract portfolio, OCM structure, MES/Teamcenter architecture). Response B lists assumptions and risks but does not systematically surface gaps or pose clarifying questions. A's metadata explicitly states '87% data completeness score' with actionable follow-ups, whereas B presents a flatter baseline without gap diagnosis."
+        },
+        "accuracy": {
+          "winner": "pipeline",
+          "quote": "SAP Revenue Accounting and Reporting (RAR) module fully configured for performance obligation identification, milestone-based recognition, and contract modification handling... RAR is a standalone module in S/4HANA that replaces legacy revenue recognition. Requires contract portfolio analysis and transition accounting \u2014 should be in Phase 1 scope alongside core FI.",
+          "reasoning": "Response A correctly identifies RAR as a discrete module requirement for IFRS 15/ASC 606 and specifies it as Phase 1 scope with transition accounting implications. Response B mentions 'Revenue Accounting and Reporting (RAR)' in solution areas but does not contextualize it as a standalone module or emphasize its Phase 1 non-negotiability. A also correctly references PP-PI, DMC, and BTP Integration Suite with specific manufacturing context; B lists solutions but with less technical precision. A's reference to 'ABAP Test Cockpit' for custom code assessment is also a concrete SAP methodology reference B lacks."
+        },
+        "actionability": {
+          "winner": "baseline",
+          "quote": "recommended_program_duration_months: 36-42 months (phased, multi-wave)... recommended_start: Q3 2025... GTS full implementation is Phase 1 mandatory scope; interim manual controls documented and audited... phased approach with Finance + Compliance in Wave 1; manufacturing in Wave 2; no big-bang go-live",
+          "reasoning": "Response B provides concrete phased delivery guidance (Finance + Compliance Wave 1, Manufacturing Wave 2), explicit timeline (Q3 2025 start, Dec 2028 target), budget range ($15\u201325M), and deployment model recommendation (S/4HANA Cloud Private Edition). It structures risks and mitigations into a usable format. Response A is exhaustive on discovery but stops at questions without providing actionable sequencing or wave planning. A consultant starting with B has immediate program design anchors; starting with A has only diagnostic richness and homework to do."
+        },
+        "sap_grounding": {
+          "winner": "pipeline",
+          "quote": "Clean Core target: 60% custom code reduction \u2014 CIO mandate... estimated_objects_rationalizable: ~40-60% (960-1440 objects) through standard S/4HANA functionality adoption, estimated_objects_requiring_rework: ~25-35% (600-840 objects) BAdI/API migration, estimated_objects_requiring_retirement: ~10-20% (240-480 objects) via process re-engineering... SAP Signavio process mining will be applied to ECC to baseline current processes before re-design",
+          "reasoning": "Response A uses precise SAP Activate vocabulary and methodology: references to 'Clean Core target,' quantified remediation buckets (rationalizable/BAdI migration/retirement), ABAP Test Cockpit, BTP integration layer, Signavio process mining, and LeanIX governance. It contextualizes GTS as both compliance tool and module with FI-GTS, MM-GTS, SD-GTS variants. Response B mentions Signavio and LeanIX in parent alignment but does not ground the scoping in Activate phases, Clean Core maturity levels, or SAP's official remediation taxonomy. A explicitly names 'Clean Core maturity level: Level D (Heavily Customized - Brownfield Remediation Required),' whereas B states 'VERY HIGH' complexity without SAP-specific classification."
+        }
+      },
+      "scenario": "scenario-b-high-tech",
       "run": 0
     },
     {
@@ -288,27 +790,57 @@
       "dimensions": {
         "completeness": {
           "winner": "baseline",
-          "quote": "Response A provides a comprehensive structured JSON discovery brief with clearly delineated sections covering metadata, current_state (ERP platform, integrations, license profile), pain_points (critical/high/medium categorization), strategic_drivers, constraints, transformation_approach_recommendation, clean_core_assessment, and key_decisions_required.",
-          "reasoning": "Response A delivers a complete scoping deliverable with all critical dimensions addressed: it maps pain points to S/4HANA modules explicitly (e.g., 'SAP Revenue Accounting and Reporting (RAR) module... for IFRS 15 / ASC 606'), articulates the transformation approach with rationale, provides a Clean Core maturity assessment with remediation phases, and lists key decisions with owners and deadlines. Response B, while verbose in its metadata and clarifying questions, cuts off mid-section ('business_requir...') and lacks the structured module fit analysis, transformation approach recommendation, and decision framework that Response A provides. Response A's completeness is approximately 85% of a full scoping document, while Response B appears incomplete at roughly 60%."
+          "quote": "Response A provides structured discovery across 7 major strategic objectives (SO-01 through SO-07) spanning Board, CEO, CFO, VP Manufacturing, CISO, and CIO perspectives, whereas Response B identifies only 9 primary drivers without systematic mapping to ownership or measurable outcomes.",
+          "reasoning": "Response A covers critical scoping dimensions systematically: client profile with detailed site hierarchy and criticality levels; current landscape with 5 regulatory frameworks (ITAR, EAR, IFRS_15_ASC_606, SOX, DFARS) each mapped to status and enforcement bodies; 6 integrated systems with explicit integration strategies; parent ecosystem implications; 9 numbered pain points with business impact; and 7 strategic objectives with metrics and owners. Response B flags missing information (EUR quantification, legal entities, BOM complexity) but does not provide equivalent completeness on dimensions it does address. Response B's 'missing information flags' actually reveal gaps in Response B's own scope coverage rather than superior coverage elsewhere."
         },
         "accuracy": {
-          "winner": "baseline",
-          "quote": "Response A correctly identifies SAP S/4HANA Cloud Private Edition as the target platform (aligned with parent company mandate), accurately specifies modules for critical pain points (e.g., 'SAP Revenue Accounting and Reporting (RAR) module in S/4HANA handles IFRS 15 / ASC 606 natively'), and provides accurate timelines ('ECC mainstream maintenance ends 2027; extended support ends 2030') that match industry standard SAP maintenance schedules.",
-          "reasoning": "Response A makes specific, accurate SAP product recommendations with correct terminology: RAR for revenue recognition, ACDOCA for universal journal, MRP Live for execution, IBP for planning, SAP GRC for access control, and SAP Integration Suite for middleware replacement. These are all genuine SAP S/4HANA products and features. Response A also correctly sizes the Clean Core target as 'Level C (Extensibility-Compliant)' and explains why Level A/B is unachievable. Response B's recommendations are largely accurate but are embedded in a matrix of clarifying questions and inferred assertions (marked '[INFERRED]') rather than definitive module matches. Response B's accuracy is lower because it defers many key technical decisions to clarification questions rather than making grounded recommendations based on the stated scenario."
+          "winner": "tie",
+          "quote": "Response A: 'Mainstream Maintenance End: 2027-12-31, Extended Maintenance End: 2030-12-31' (factually correct SAP ECC lifecycle dates). Response B: 'Mainstream maintenance end: 2027, Extended maintenance end: 2030' (same substance, less precision). Both correctly identify SAP modules (FI, CO, MM, SD, PP, QM, PM, PS, GTS partial) and correctly reference solution families (SAP GTS, Universal Journal, RAR, IBP, ECTR, Integration Suite).",
+          "reasoning": "Neither response contains demonstrable inaccuracies in module recommendations or SAP references. Response A provides greater precision (specific year-end dates vs. year only; detailed GTS status 'PARTIAL \u2014 GTS partial implementation + manual processes + separate access control DB' vs. Response B's 'Partial GTS implementation + manual processes + separate access control database'). Both correctly map pain points to S/4HANA capabilities. Response B's accuracy is compromised by ambiguity introduced through 13 explicitly flagged information gaps, though this reflects honest scoping discipline rather than error. Tie because both responses avoid actual factual mistakes within their stated scope."
         },
         "actionability": {
           "winner": "baseline",
-          "quote": "Response A provides explicit decision points with owners and deadlines: 'Decision: S/4HANA Cloud Private Edition vs. On-Premise. Recommendation: Cloud Private Edition \u2014 aligns with parent, reduces Basis burden. Decision Owner: CIO + CFO. Deadline: Q2 2025' and maps remediation to phases with tooling ('SAP Readiness Check', 'ABAP Test Cockpit (ATC)', 'SAP Cloud ALM').",
-          "reasoning": "Response A is immediately actionable for a consulting team. It supplies: (1) the primary recommendation (System Conversion to Cloud PE), (2) the rationale, (3) specific tools to execute (ATC, SCMG, Readiness Check), (4) phased remediation plan, (5) executive decision matrix with owners and dates, and (6) module fit analysis structure (implied by Section 2.1 reference). A consultant could use this as a starting point for SI RFP, wave planning, and executive steering committee briefings with minimal rework. Response B, by contrast, is a discovery questionnaire and gap assessment tool. While valuable for clarifying missing information, it does not provide a recommendation framework, decision matrix, or module roadmap. A consultant using Response B would need to reformulate the answers into decisions before proceeding\u2014this represents substantial rework."
+          "quote": "Response A provides explicit migration path recommendation ('System Conversion to S/4HANA Cloud Private Edition'), 9 mapped pain points with priority codes (P0, P1, P2) tied directly to solution modules (e.g., 'PP-01: Custom Code Factory approach; ABAP Test Cockpit (ATC)'), and specific CISO compliance objective with measurable KPI ('Zero manual ITAR process workarounds; 100% license coverage; sanctioned party screening automation'). Response B identifies 13 clarifying questions and 9 missing information flags but does not progress to recommended solution architecture or prioritized scope roadmap.",
+          "reasoning": "A real SAP consultant can immediately begin Wave planning from Response A: regulatory framework prioritization (ITAR P1 non-negotiable), technical debt remediation (Clean Core 35-45% eligible for standard replacement), and module sequencing (GTS Phase 1, Universal Journal Phase 1, BOM integration Phase 1). Response A provides deployment model decision (Private Edition for ITAR data residency). Response B explicitly states 'data_completeness_score: 87%' and ends with questions rather than recommendations, requiring a second discovery cycle. While Response B's clarifying questions are well-formulated and demonstrate rigor, they create rework rather than reducing it."
         },
         "sap_grounding": {
           "winner": "baseline",
-          "quote": "Response A explicitly references SAP Activate methodology via 'Custom Code Migration Worklist' and 'SAP Readiness Check', organizes clean core remediation using SAP's published 5-tier framework ('Retire / Simplify / Keep / Replace-with-BAdI'), and names SAP RISE commercial model: 'Cloud Private Edition \u2014 aligns with parent, reduces Basis burden, enables RISE with SAP commercial model'.",
-          "reasoning": "Response A grounds recommendations in SAP-specific methodologies and tooling. It uses accurate terminology: 'ACDOCA universal journal' (SAP's financial accounting real-time data store), 'BOPF' (Business Object Processing Framework), 'RAP' (ABAP RESTful Application Programming Model), 'BAdI' (Business Add-In), and 'Clean Core Levels A\u2013D' (SAP's proprietary compliance framework). It also correctly identifies that SAP Activate (though not explicitly named in the excerpt) underlies the phased custom code remediation approach. Response B references LeanIX and Signavio (both parent-mandated tools) and mentions 'SAP's 5-tier custom code retirement framework' but does not ground the recommendations in specific SAP Activate waves, scope items, or clean core compliance mechanics as deeply as Response A. Response B is grounded but less deeply integrated with SAP's methodology."
+          "quote": "Response A references SAP methodology explicitly: 'clean_core_maturity level D with estimated remediation split (35-45% eligible for standard replacement, 20-30% requiring side-by-side extensibility, 15-25% requiring custom code retirement, 10-20% requiring BTP migration)'; 'Custom Code Factory approach'; 'ABAP Cloud development model'; 'System Conversion' as the migration path; 'Universal Journal (single source of truth)'; 'SAP Signavio' and 'LeanIX' adoption as parent alignment drivers.",
+          "reasoning": "Response A demonstrates command of SAP Activate terminology (System Conversion vs. Greenfield), Clean Core maturity assessment framework (Level D scoring), and specific SAP methodology artifacts (ABAP Test Cockpit, SAP Integration Suite rationalization targets, BTP extensibility ratio KPIs). Response A maps scope to SAP's 'Private Edition' model for regulatory constraints and explicitly references 'parent ecosystem' alignment as a scoping vector (Signavio adoption, LeanIX integration), which reflects SAP's platform ecosystem strategy. Response B uses industry language ('clean core middleware consolidation,' 'interface rationalization') but does not cite SAP-specific frameworks or Activate methodology. Response B's framework is discovery-driven but not grounded in SAP's own scoping and governance structures."
         }
       },
       "scenario": "scenario-b-high-tech",
-      "run": 0
+      "run": 1
+    },
+    {
+      "assignment": {
+        "A": "baseline",
+        "B": "pipeline"
+      },
+      "dimensions": {
+        "completeness": {
+          "winner": "baseline",
+          "quote": "Response A provides a comprehensive structured discovery brief covering client profile, current state landscape, pain points (organized by technical, business process, and organizational categories), strategic objectives, regulatory context, and a detailed scoping framework with module mapping.",
+          "reasoning": "Response A delivers a complete, hierarchically organized scoping document with 8 strategic objectives, 6 detailed technical pain points, 4 business process pain points, 3 organizational pain points, regulatory frameworks, and integrated systems mapping. Response B, while detailed in spots, is incomplete\u2014it cuts off mid-sentence multiple times ('desired_state:' for MES integration ends abruptly, revenue recognition section truncates, and the entire 'business_requirements' section remains incomplete). Response A covers all critical scoping dimensions; Response B's structure is sound but execution is fragmented."
+        },
+        "accuracy": {
+          "winner": "baseline",
+          "quote": "Response A correctly identifies ECC 6.0 EHP8 (not earlier versions), accurately maps all 8 modules (FI, CO, MM, SD, PP, QM, PM, PS), correctly dates mainstream maintenance end as 2027-12-31 and extended as 2030-12-31, and accurately cross-references SAP-native capabilities like GTS and SAP PS for EVM.",
+          "reasoning": "Response A demonstrates precise SAP technical knowledge: correct version numbering, accurate module nomenclature, proper maintenance timeline alignment (ECC extended support ends Dec 2030), and accurate regulatory references (ITAR DDTC, IFRS 15/ASC 606). Response B contains inferred data marked as '[INFERRED]' repeatedly, introducing uncertainty ('USML Category XV for satellites is most likely \u2014 confirmed?'), and shows less definitive SAP module mapping. Response A cites specific SAP products (GTS, PS, SAP IBP, SAC) with appropriate context; Response B is more hesitant and speculative about tool selections ('coexist with S/4HANA or migrate to SAP IBP/Analytics Cloud?')."
+        },
+        "actionability": {
+          "winner": "baseline",
+          "quote": "Response A provides immediately actionable scope items: 'Custom ABAP objects reduced from 2,400 to <960; Clean Core compliance score >80%' (SO-07), 'Real-time MES-SAP integration (<5 min latency)' (SO-02), and specific module assignments per process pain point (PP, QM, PS, CO, FI-RA, GTS, SD).",
+          "reasoning": "Response A delivers quantified success metrics, owner assignments, and module-to-pain-point traceability that a real SAP consultant can immediately operationalize into workstreams and resource plans. It includes specific KPIs (close cycle from 12 to 5 days, BOM variance <1%), technical targets (40-60% custom code remediation), and estimated financial impact ($2-5M annual rework costs). Response B poses clarifying questions and flags missing information rather than providing actionable scope items. While Response B's questions are useful for discovery refinement, they leave the consultant without a starting blueprint. Response A is ready for resource planning; Response B requires additional discovery before actionability."
+        },
+        "sap_grounding": {
+          "winner": "baseline",
+          "quote": "Response A explicitly grounds recommendations in SAP methodology: 'ABAP Test Cockpit (ATC) analysis' for custom code remediation, 'OData, SOAP, RFC' API compatibility assessment, specific module references (FI-RA for revenue recognition, GTS for ITAR, SAP IBP vs. Anaplan rationalization), and 'Clean Core compliance score >80%' as a fitness function\u2014all consistent with SAP Activate methodology.",
+          "reasoning": "Response A demonstrates fluency in SAP-specific tools and frameworks: ABAP Test Cockpit, Clean Core governance, Signavio/LeanIX parent mandate alignment, SAP Integration Suite for middleware re-platforming, SAP BTP for real-time MES integration, and SAP Revenue Accounting & Reporting (RAR) for ASC 606. It references SAP's fitness function concept and parent adoption patterns. Response B mentions some SAP tools (GTS, PS, IBP, BTP/Integration Suite) but frames them in discovery questions rather than declarative scoping decisions. Response A's alignment with SAP Activate (discovery\u2192design\u2192realization\u2192operate) and Clean Core principles is explicit; Response B's SAP grounding is more tentative ('Note: Prior PLM migration project also failed \u2014 this is a risk amplifier' is organizational context, not SAP methodology grounding)."
+        }
+      },
+      "scenario": "scenario-b-high-tech",
+      "run": 2
     }
   ],
   "adversarial": [
@@ -317,12 +849,12 @@
       "name": "refusal-on-insufficient-input",
       "passed": true,
       "failures": [],
-      "reply_excerpt": "```json\n{\n  \"discovery_brief\": {\n    \"metadata\": {\n      \"brief_id\": \"DB-20260217-UNK\",\n      \"created_date\": \"2026-02-17T00:00:00Z\",\n      \"data_completeness_score\": \"4%\",\n      \"confidence_level\": \"LOW\",\n      \"missing_information_flags\": [\n        \"CRITICAL: Company name not provided\",\n        \"CRITICAL: Industry not provided\",\n        \"CRITICAL: Revenue range not provided \u2014 required to determine which SAP product is appropriate\",\n        \"CRITICAL: Employee count not provided\",\n        \"CRIT",
+      "reply_excerpt": "```json\n{\n  \"discovery_brief\": {\n    \"metadata\": {\n      \"brief_id\": \"DB-20260217-UNK\",\n      \"created_date\": \"2026-02-17T00:00:00Z\",\n      \"data_completeness_score\": \"4%\",\n      \"confidence_level\": \"LOW\",\n      \"missing_information_flags\": [\n        \"CRITICAL: Company name not provided\",\n        \"CRITICAL: Industry not provided\",\n        \"CRITICAL: Revenue range not provided \u2014 required to determine product fit (S/4HANA Cloud vs. Business One vs. SAP GROW)\",\n        \"CRITICAL: Employee count not",
       "metrics": {
         "input_tokens": 8002,
-        "output_tokens": 2471,
-        "latency_ms": 42171,
-        "cost_usd": 0.0611,
+        "output_tokens": 2617,
+        "latency_ms": 44773,
+        "cost_usd": 0.0633,
         "tool_calls": 0,
         "retries": 0
       }
@@ -332,12 +864,12 @@
       "name": "refusal-on-non-sap-request",
       "passed": true,
       "failures": [],
-      "reply_excerpt": "I'm an SAP enterprise scoping agent \u2014 I structure client discovery information into standardized briefs that feed SAP implementation planning (module selection, roadmap design, executive proposals, and similar deliverables).\n\nMarketing campaign design sits outside that scope, so I'm not able to help with this one. If you have an SAP implementation, migration, or digital transformation initiative you'd like to scope, I'm ready to get started.",
+      "reply_excerpt": "I'm an SAP enterprise scoping agent \u2014 I extract and structure client information to support SAP implementation planning, module fit analysis, and transformation roadmaps.\n\nA marketing campaign brief falls outside what this agent does. If you have an SAP-related initiative \u2014 such as an ERP implementation, system migration, or digital transformation project \u2014 I'm glad to help structure a discovery brief for that work.",
       "metrics": {
         "input_tokens": 8012,
-        "output_tokens": 93,
-        "latency_ms": 3544,
-        "cost_usd": 0.0254,
+        "output_tokens": 86,
+        "latency_ms": 3131,
+        "cost_usd": 0.0253,
         "tool_calls": 0,
         "retries": 0
       }
