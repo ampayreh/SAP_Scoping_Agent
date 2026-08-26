@@ -642,3 +642,89 @@ that began at #8: judge independence, blinding, computed consistency,
 pairwise comparison, two root-caused test-design bugs, a token-budget
 fix, and a retry mechanism, all verified against real committed data
 rather than asserted.
+
+
+---
+
+## 12. Interview-prep rigor pass, Step 1 of 4: confidence intervals and a
+    real significance test on the final comparison
+
+**Context.** Prepping to talk about this work honestly in an interview
+surfaced a real gap #11's headline numbers had been quietly resting on:
+"pipeline mean 4.25, baseline mean 4.25" and "16 of 24 baseline-preferred"
+were reported as means and counts with no stated uncertainty, no test of
+whether the observed difference (or lack of one) could plausibly be noise,
+and no explicit statement of how much statistical weight n=3 can actually
+bear. Every number in #11 was real, computed correctly, and honestly
+reported — but "honestly reported" and "statistically characterized" are
+not the same claim, and an interviewer asking "how confident are you in
+that tie?" deserved a computed answer, not a shrug.
+
+**What was added, in `eval.py`:**
+
+- `_bootstrap_ci()` — a percentile bootstrap 95% CI, used instead of a
+  normal-approximation interval (`mean +/- 1.96*SE`) because the normal
+  approximation's validity depends on the Central Limit Theorem having
+  enough data to approximate a Gaussian sampling distribution, which n=2-3
+  cannot supply. Documented honestly in its own docstring: with n=3, there
+  are only `3**3 = 27` distinct bootstrap resamples, so 10,000 resamples is
+  10,000 draws from a genuinely small set of 27 outcomes, not 10,000
+  independent pieces of information. The CI is real and correctly computed;
+  it is not a rich picture of the true population spread at this n, and the
+  docstring says so rather than letting the large resample count imply more
+  precision than the underlying data can support.
+- `_exact_paired_permutation_test()` — the primary significance test,
+  exact at any sample size (no normal/asymptotic approximation, unlike a
+  t-test or Wilcoxon's usual p-value). Its docstring works out the actual
+  floor: for n paired observations there are `2**n` possible sign-flip
+  relabelings, so the smallest two-sided p-value any dataset of that size
+  can ever produce is `2 / 2**n`. **At n=3, that floor is 0.25 — this test
+  cannot reach conventional significance (p<0.05) at this sample size,
+  regardless of how large the true effect is.** This is stated in the code
+  comment, computed and printed with every result (`min_achievable_p_at_this_n`),
+  and repeated in `RESULTS.md` so it can never be silently missed by a
+  reader skimming past a p-value to a mean.
+- `_wilcoxon_signed_rank()` — `scipy.stats.wilcoxon` as a second, standard
+  cross-check when scipy is installed (now optional in `requirements.txt`);
+  reports why it's unavailable rather than crashing when it isn't, or when
+  every paired difference is exactly zero (scenario-b-high-tech's case —
+  every one of 3 runs scored identically for both methods, leaving nothing
+  for a rank-based test to rank).
+- `compute_significance()` — per scenario, pairs pipeline and baseline
+  runs by matching run index (run 0's pipeline vs. run 0's baseline, etc.
+  — the closest thing this harness produces to a matched pair, since both
+  were generated within the same eval iteration), and reports mean/stdev/CI
+  for each method plus both significance tests on the paired differences.
+  Scenarios run with `--pipeline-only`/`--baseline-only` correctly produce
+  no entry, since there is nothing to pair.
+- A directional-only disclaimer, printed to stdout and written into
+  `RESULTS.md`, fires automatically whenever a scenario has fewer than 10
+  paired runs (`SIGNIFICANCE_DISCLAIMER_THRESHOLD_N`) — currently every
+  scenario on file, since `--runs 3` is the largest run so far.
+
+**Applied against the real, already-committed n=3 data (#11) at zero
+additional API cost** — this is pure recomputation over existing judge
+scores, no new model calls. Result: permutation test observed mean
+difference = 0.0 for both scenarios (an exact match to #11's "dead tie"
+finding, now with a computed p-value of 1.0 attached, at the test's own
+stated floor of p=0.25 either way), Wilcoxon agrees where it can run.
+Verified with three hand-built edge cases before trusting the real output:
+n=1 correctly reports a min-achievable-p of 1.0 (a single paired run can
+never show significance at all, the most extreme possible statement of
+"underpowered"); a pipeline-only scenario correctly produces no paired
+entry; mismatched run indices (pipeline has runs 0-1, baseline only has
+run 0) correctly pair only the shared index.
+
+**What this does NOT close, stated plainly rather than papered over.**
+This makes the size of the "not enough runs" gap explicit and computed
+instead of asserted in prose — it does not, and cannot, make n=3 into a
+statistically powered comparison. The permutation test's own floor
+(p≥0.25 at n=3) is the honest ceiling on what this comparison can ever
+claim until `--runs` is materially higher (the docstring's math applies
+identically at n=5, n=10, wherever the next real run lands — the floor is
+`2/2**n`, so it improves fast: n=5 → 0.0625, n=7 → 0.0156, both below the
+conventional 0.05 line). The bootstrap CI has the same underlying-data
+limitation: real, correctly computed, but resampling 3 points 10,000 times
+does not manufacture statistical power that 3 points do not have. Anyone
+citing this comparison should cite the tie and the p-value together, not
+the tie alone.

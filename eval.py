@@ -35,6 +35,7 @@ Output:
 """
 
 import argparse
+import itertools
 import json
 import os
 import random
@@ -437,6 +438,184 @@ def compute_consistency(all_results: list[dict]) -> list[dict]:
     return out
 
 
+# ── Significance testing (Step 1, interview-prep rigor pass) ──────────
+
+# Below this sample size, the disclaimer in write_results() and RESULTS.md
+# states plainly that the comparison is directional, not proof. 10 is a
+# round, conservative choice, not a statistically derived cutoff -- the
+# actual math in _exact_paired_permutation_test()'s docstring is what
+# tells you exactly how underpowered a given n is; this constant just
+# controls when the plain-English warning fires.
+SIGNIFICANCE_DISCLAIMER_THRESHOLD_N = 10
+
+
+def _bootstrap_ci(values: list[float], n_resamples: int = 10000, ci: float = 0.95) -> tuple[float, float] | None:
+    """Percentile-method bootstrap confidence interval for the mean.
+
+    Used instead of a normal-approximation CI (mean +/- 1.96*SE) because a
+    normal approximation assumes the sampling distribution of the mean is
+    roughly Gaussian, which is not a reasonable assumption at n=2-3 -- the
+    Central Limit Theorem's approximation quality depends on sample size,
+    and 3 points give it essentially nothing to work with. A bootstrap CI
+    doesn't need that assumption.
+
+    Honest limitation, stated here rather than left implicit: with n=3
+    raw values, there are only 3**3 = 27 distinct possible resamples
+    (with replacement) -- resampling 10,000 times does not create 10,000
+    distinct pieces of information, only 10,000 draws from a genuinely
+    small underlying set of 27 outcomes. The interval below is real and
+    correctly computed, but at this sample size it is closer to "what the
+    3 observed values are structurally capable of producing under
+    resampling" than a rich picture of the true population's spread.
+    Report it, but do not over-read its precision.
+    """
+    n = len(values)
+    if n < 2:
+        return None
+    rng = random.Random()
+    means = []
+    for _ in range(n_resamples):
+        resample = [values[rng.randrange(n)] for _ in range(n)]
+        means.append(sum(resample) / n)
+    means.sort()
+    lo_idx = max(0, int(round((1 - ci) / 2 * n_resamples)))
+    hi_idx = min(n_resamples - 1, int(round((1 + ci) / 2 * n_resamples)) - 1)
+    return (round(means[lo_idx], 3), round(means[hi_idx], 3))
+
+
+def _exact_paired_permutation_test(differences: list[float]) -> dict:
+    """Exact sign-flip permutation test on paired differences
+    (pipeline_i - baseline_i for matched run index i within a scenario).
+
+    Why this is the primary test rather than a fallback: for n paired
+    observations there are exactly 2**n possible sign-flip assignments,
+    each corresponding to a relabeling of which member of pair i is
+    "pipeline" and which is "baseline" under the null hypothesis that
+    there is no systematic difference between the two methods. The
+    two-sided p-value is the fraction of those 2**n relabelings whose
+    |mean difference| is at least as extreme as the one actually
+    observed. This is EXACT at any sample size -- unlike a t-test (which
+    relies on a normal/asymptotic approximation) or Wilcoxon's usual
+    normal-approximation p-value (unreliable well below n=10), it makes
+    no distributional assumption and is not an approximation of anything.
+
+    The structural limitation this test has at small n, stated up front
+    rather than discovered by squinting at a p-value later: the smallest
+    two-sided p-value ANY dataset of size n can produce under this test
+    is 2 / 2**n -- only the two most extreme relabelings (all-positive,
+    all-negative) can tie the observed extremity when the observed data
+    IS the most extreme possible arrangement. At n=3, that floor is
+    2/8 = 0.25. No effect size, however large, can push this test's
+    p-value below 0.25 with only 3 paired runs -- that is a property of
+    n=3, not of the data, and it is reported below every time this
+    function runs so nobody mistakes "p=0.25, our best possible result"
+    for "no effect."
+    """
+    n = len(differences)
+    if n == 0:
+        return {"n": 0, "note": "no paired observations"}
+    observed = abs(sum(differences) / n)
+    total = 2 ** n
+    at_least_as_extreme = 0
+    for signs in itertools.product((1, -1), repeat=n):
+        flipped_mean = abs(sum(s * d for s, d in zip(signs, differences)) / n)
+        if flipped_mean >= observed - 1e-9:
+            at_least_as_extreme += 1
+    p_value = at_least_as_extreme / total
+    min_achievable_p = 2 / total
+    return {
+        "n": n,
+        "observed_mean_diff": round(sum(differences) / n, 4),
+        "p_value": round(p_value, 4),
+        "min_achievable_p_at_this_n": round(min_achievable_p, 4),
+        "method": "exact sign-flip permutation test",
+    }
+
+
+def _wilcoxon_signed_rank(differences: list[float]) -> dict:
+    """scipy.stats.wilcoxon as a second, standard cross-check alongside
+    the hand-rolled exact permutation test above. Optional: if scipy is
+    not installed, or the data can't support the test (e.g. every paired
+    difference is exactly zero), this reports why rather than crashing
+    the whole harness over an optional diagnostic.
+    """
+    try:
+        from scipy import stats as scipy_stats
+    except ImportError:
+        return {"available": False, "reason": "scipy not installed (pip install scipy) -- not required, permutation test above still runs"}
+
+    nonzero = [d for d in differences if d != 0]
+    if len(nonzero) == 0:
+        return {"available": False, "reason": "all paired differences are exactly zero -- nothing for Wilcoxon to rank"}
+    try:
+        stat, p = scipy_stats.wilcoxon(differences, zero_method="wilcox")
+        return {
+            "available": True,
+            "statistic": round(float(stat), 4),
+            "p_value": round(float(p), 4),
+            "method": "scipy.stats.wilcoxon",
+        }
+    except Exception as e:
+        return {"available": False, "reason": f"scipy.stats.wilcoxon could not compute at this n: {e}"}
+
+
+def compute_significance(all_results: list[dict]) -> list[dict]:
+    """Per-scenario: mean, sample stdev, and bootstrap 95% CI for each
+    method's run-quality scores (same "mean of the 4 judged dimensions
+    per run" scalar compute_consistency() uses), plus a paired
+    significance test comparing pipeline vs baseline, paired by matching
+    run index within the scenario (run 0's pipeline output vs run 0's
+    baseline output, etc. -- both were generated within the same eval
+    iteration, which is the closest thing to a matched pair this harness
+    produces).
+
+    Returns one entry per scenario that has at least one paired
+    (pipeline, baseline) run at the same index; scenarios run with
+    --pipeline-only or --baseline-only produce no paired entry here,
+    since there is nothing to pair.
+    """
+    by_scenario_method: dict[tuple, dict[int, float]] = {}
+    for r in all_results:
+        scores = r.get("judge_scores", {})
+        vals = [scores.get(d, {}).get("score") for d in DIMENSIONS]
+        if any(v is None for v in vals):
+            continue
+        run_quality = sum(vals) / len(vals)
+        key = (r["scenario"], r["method"])
+        by_scenario_method.setdefault(key, {})[r["run"]] = run_quality
+
+    scenarios = sorted({s for (s, _m) in by_scenario_method})
+    out = []
+    for scenario in scenarios:
+        pipeline_by_run = by_scenario_method.get((scenario, "pipeline"), {})
+        baseline_by_run = by_scenario_method.get((scenario, "baseline"), {})
+        shared_runs = sorted(set(pipeline_by_run) & set(baseline_by_run))
+        if not shared_runs:
+            continue
+
+        pipeline_vals = [pipeline_by_run[i] for i in shared_runs]
+        baseline_vals = [baseline_by_run[i] for i in shared_runs]
+        differences = [p - b for p, b in zip(pipeline_vals, baseline_vals)]
+
+        def _summary(vals: list[float]) -> dict:
+            n = len(vals)
+            mean = round(sum(vals) / n, 4)
+            stdev = round(statistics.stdev(vals), 4) if n > 1 else None
+            ci = _bootstrap_ci(vals) if n > 1 else None
+            return {"n": n, "mean": mean, "stdev": stdev, "ci_95": ci}
+
+        out.append({
+            "scenario": scenario,
+            "n_paired_runs": len(shared_runs),
+            "pipeline": _summary(pipeline_vals),
+            "baseline": _summary(baseline_vals),
+            "permutation_test": _exact_paired_permutation_test(differences),
+            "wilcoxon": _wilcoxon_signed_rank(differences),
+            "directional_only": len(shared_runs) < SIGNIFICANCE_DISCLAIMER_THRESHOLD_N,
+        })
+    return out
+
+
 # ── Adversarial Cases ──────────────────────────────────────
 
 # adv-01's dollar-figure check needs special handling beyond a bare regex
@@ -636,6 +815,7 @@ def write_results(
     EVALS_DIR.mkdir(exist_ok=True)
 
     consistency = compute_consistency(all_results)
+    significance = compute_significance(all_results)
 
     output = {
         "model": MODEL_ID,
@@ -644,6 +824,7 @@ def write_results(
         "runs_per_scenario": runs,
         "results": all_results,
         "consistency": consistency,
+        "significance": significance,
         "pairwise": pairwise_results,
         "adversarial": adversarial,
     }
@@ -703,6 +884,56 @@ def write_results(
             f"| {c['scenario']} | {c['method']} | {c['runs']} | {c['mean_score']} | {c['stddev']} | {cs} |"
         )
 
+    if significance:
+        lines += [
+            "",
+            "## Statistical Comparison (confidence intervals + paired significance test)\n",
+            "For each scenario, the per-run \"quality\" scalar (mean of the four judged",
+            "dimensions) is compared between pipeline and baseline, paired by matching",
+            "run index. The 95% CI is a percentile bootstrap, not a normal-approximation",
+            "interval — a normal approximation assumes enough data for the Central Limit",
+            "Theorem to kick in, which 2-3 points cannot supply. The significance test is",
+            "an exact sign-flip permutation test (always exact, no distributional",
+            "assumption), cross-checked against `scipy.stats.wilcoxon` where available.",
+            "",
+        ]
+        for s in significance:
+            n = s["n_paired_runs"]
+            disclaimer = (
+                f"⚠️ **n={n} paired run(s) — this comparison is DIRECTIONAL, not proof. "
+                f"Do not read the numbers below as statistically confirmed at this sample size.**"
+                if s["directional_only"] else ""
+            )
+            lines.append(f"**{s['scenario']}** ({n} paired run{'s' if n != 1 else ''})")
+            if disclaimer:
+                lines.append("")
+                lines.append(disclaimer)
+            lines.append("")
+            lines.append("| Method | Mean | Stdev | 95% Bootstrap CI |")
+            lines.append("|--------|:---:|:---:|:---:|")
+            for label, summ in (("pipeline", s["pipeline"]), ("baseline", s["baseline"])):
+                stdev = summ["stdev"] if summ["stdev"] is not None else "—"
+                ci = f"[{summ['ci_95'][0]}, {summ['ci_95'][1]}]" if summ["ci_95"] else "—"
+                lines.append(f"| {label} | {summ['mean']} | {stdev} | {ci} |")
+            lines.append("")
+
+            perm = s["permutation_test"]
+            lines.append(
+                f"Exact permutation test: observed mean difference (pipeline − baseline) = "
+                f"**{perm.get('observed_mean_diff', '—')}**, p = **{perm.get('p_value', '—')}** "
+                f"(minimum p this test could report at n={n} is {perm.get('min_achievable_p_at_this_n', '—')} — "
+                f"the test is structurally incapable of reaching p<0.05 below that floor, "
+                f"regardless of effect size)."
+            )
+            wil = s["wilcoxon"]
+            if wil.get("available"):
+                lines.append(
+                    f"Wilcoxon signed-rank (scipy): statistic = {wil['statistic']}, p = {wil['p_value']}."
+                )
+            else:
+                lines.append(f"Wilcoxon signed-rank: not available — {wil.get('reason', 'unknown reason')}.")
+            lines.append("")
+
     lines += [
         "",
         "## Blinded Pairwise Comparison\n",
@@ -761,6 +992,13 @@ def write_results(
 
     with open(RESULTS_MD, "w") as f:
         f.write("\n".join(lines) + "\n")
+
+    for s in significance:
+        if s["directional_only"]:
+            print(
+                f"NOTE: {s['scenario']} comparison is based on n={s['n_paired_runs']} paired "
+                f"run(s) — directional only, not statistical proof."
+            )
 
     print(f"\nResults: {RESULTS_JSON}")
     print(f"Report:  {RESULTS_MD}")

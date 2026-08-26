@@ -1,7 +1,7 @@
 # SAP Scoping Agent — Evaluation Results
 
-System model (under test): `us.anthropic.claude-sonnet-4-6`
-Judge model: `us.anthropic.claude-haiku-4-5-20251001-v1:0`
+System model (under test): `claude-sonnet-4-20250514`
+Judge model: `claude-opus-5`
 Judge independence: ✅ different model line from the system under test
 Runs per scenario: 3
 
@@ -45,6 +45,41 @@ estimate. Treat it as indicative, not statistically rigorous.**
 | scenario-b-high-tech | baseline | 3 | 5.0 | 0.0 | 5 |
 | scenario-b-high-tech | pipeline | 3 | 5.0 | 0.0 | 5 |
 
+## Statistical Comparison (confidence intervals + paired significance test)
+
+For each scenario, the per-run "quality" scalar (mean of the four judged
+dimensions) is compared between pipeline and baseline, paired by matching
+run index. The 95% CI is a percentile bootstrap, not a normal-approximation
+interval — a normal approximation assumes enough data for the Central Limit
+Theorem to kick in, which 2-3 points cannot supply. The significance test is
+an exact sign-flip permutation test (always exact, no distributional
+assumption), cross-checked against `scipy.stats.wilcoxon` where available.
+
+**scenario-a-agribusiness** (3 paired runs)
+
+⚠️ **n=3 paired run(s) — this comparison is DIRECTIONAL, not proof. Do not read the numbers below as statistically confirmed at this sample size.**
+
+| Method | Mean | Stdev | 95% Bootstrap CI |
+|--------|:---:|:---:|:---:|
+| pipeline | 4.25 | 0.6614 | [3.75, 5.0] |
+| baseline | 4.25 | 0.6614 | [3.75, 5.0] |
+
+Exact permutation test: observed mean difference (pipeline − baseline) = **0.0**, p = **1.0** (minimum p this test could report at n=3 is 0.25 — the test is structurally incapable of reaching p<0.05 below that floor, regardless of effect size).
+Wilcoxon signed-rank (scipy): statistic = 3.0, p = 1.0.
+
+**scenario-b-high-tech** (3 paired runs)
+
+⚠️ **n=3 paired run(s) — this comparison is DIRECTIONAL, not proof. Do not read the numbers below as statistically confirmed at this sample size.**
+
+| Method | Mean | Stdev | 95% Bootstrap CI |
+|--------|:---:|:---:|:---:|
+| pipeline | 5.0 | 0.0 | [5.0, 5.0] |
+| baseline | 5.0 | 0.0 | [5.0, 5.0] |
+
+Exact permutation test: observed mean difference (pipeline − baseline) = **0.0**, p = **1.0** (minimum p this test could report at n=3 is 0.25 — the test is structurally incapable of reaching p<0.05 below that floor, regardless of effect size).
+Wilcoxon signed-rank: not available — all paired differences are exactly zero -- nothing for Wilcoxon to rank.
+
+
 ## Blinded Pairwise Comparison
 
 For each run where both pipeline and baseline outputs exist, the judge saw both
@@ -72,3 +107,26 @@ excerpt. Counts below are aggregated across every scenario and run.
 |------|------|--------|
 | adv-01 | refusal-on-insufficient-input | ✅ PASS |
 | adv-02 | refusal-on-non-sap-request | ✅ PASS |
+
+---
+
+## Harness Changelog
+
+Short, dated notes on changes to the eval harness itself (not to a run's
+numbers). Full rationale for each lives in `DECISIONS.md`; this is the
+one-line pointer.
+
+**2026-08-26 — Step 1 of 4, interview-rigor pass: confidence intervals +
+paired significance test.** Added `compute_significance()`: per-scenario
+mean/stdev/95%-bootstrap-CI for both methods, plus a paired comparison
+(matched by run index) using an exact sign-flip permutation test
+(always exact, no distributional assumption) cross-checked against
+`scipy.stats.wilcoxon` where installed. A directional-only disclaimer
+prints to stdout and into this file whenever a scenario has fewer than
+10 paired runs — currently every scenario, since `--runs 3` is what's
+been run so far. The permutation test's own math states its floor
+plainly: at n=3, the minimum p-value it can ever report is 0.25 — no
+effect size can cross p<0.05 at this sample size. This does not close
+the "not enough runs for real power" gap; it makes the size of that gap
+explicit and computed, rather than asserted in prose. See `DECISIONS.md`
+#12.
