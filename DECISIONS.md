@@ -335,3 +335,193 @@ guessing at the agent. This entry does the same thing one level up: the
 eval *harness itself* — not any scenario, not the orchestrator, not the
 skills — was measuring the wrong thing in three independent ways, and all
 three are now fixed at the layer that actually caused them.
+
+
+---
+
+## 9. First real run under the #8 fix: honest result, and one new finding
+
+**Context:** #8 fixed the eval harness (independent judge, blinded absolute
+scoring, blinded pairwise comparison, computed consistency) but could not
+be run for real in that session — no API credentials were available. This
+entry records the first actual run under the fixed harness: 2 scenarios ×
+3 runs, `us.anthropic.claude-sonnet-4-6` as the system under test,
+`us.anthropic.claude-opus-4-6-v1` as the independently-verified judge
+(confirmed with a live `invoke_model` call before the run — the naive
+`us.anthropic.claude-opus-4-6` guess in #8's first draft did not exist and
+was corrected to the `-v1` suffix after checking `list-inference-profiles`
+against the actual account).
+
+**The result, stated plainly, as instructed: the pipeline does not beat
+the baseline on quality in this run.** Absolute scores still cluster at
+4-5 for both methods on every dimension — the ceiling effect #8 named is
+real and confirmed, absolute scoring alone still can't discriminate. The
+blinded pairwise comparison, which exists specifically to break that
+ceiling, shows the **baseline winning or tying more often than the
+pipeline on every dimension**: across 6 runs × 4 dimensions (24
+judgments), baseline was preferred 13 times, pipeline 9 times, 2 ties.
+The gap is worst on **actionability** (baseline preferred 4 of 6,
+pipeline 1, tie 1) — the dimension most directly about whether a
+consultant could use the output as-is, and the one most plausibly hurt by
+the truncation finding below. Completeness and SAP grounding were split
+close to even (3-3 each); accuracy leaned baseline (3-2, 1 tie).
+
+**Cost and latency are not close.** Pipeline runs averaged $1.71 versus
+$0.23 for baseline — **about 7.4× the cost** — and 476s versus 273s
+latency — **about 1.75× the time**. Combined with the quality result
+above: on these two scenarios, the orchestrated pipeline costs roughly
+7× more, runs roughly 1.75× slower, and is not judged better on any
+dimension in blinded head-to-head comparison. **This is the honest
+number, not a hedged one.** It is also, per the discipline #8 argued for,
+a stronger applied-AI story than a fabricated win would have been: the
+harness was built to actually discriminate, and when it did, it found a
+result the author didn't get to pick.
+
+**One caveat that cuts the other way, stated with equal honesty:** n=3
+runs per scenario on 2 scenarios is a small sample, and the
+`Consistency` band above (computed, not judge-estimated) shows both
+methods scoring 4-5 — i.e. both are reasonably stable, so the pairwise
+split is unlikely to be pure noise, but it is not a large-sample result
+either. A materially higher `--runs` count would sharpen this, not soften
+it — the honest expectation given this data is that more runs would
+likely confirm the same direction, not reverse it, but that is an
+expectation, not a re-run result.
+
+**New finding, verified with direct evidence, NOT fixed here (in scope
+for a future PR, not this one):** Skill 01 (Client Discovery Intake) hits
+its `max_tokens` ceiling (8192) on **6 out of 6 runs**, in both scenarios,
+with zero variance in output token count — the textbook signature of
+truncation, not content that happens to land exactly at a limit.
+Confirmed directly by inspecting a raw output file
+(`state/run-20260825T232632-skill-01.json`): the file ends mid-sentence,
+mid-string, with no closing braces — `"...ranged from $18M to $40M` and
+then nothing. This is a real defect in `orchestrator.py`'s `SKILLS` config
+(`01-client-discovery-intake.md`'s `max_tokens: 8192`), not in the eval
+harness, and per this fix's own scope boundary
+(`orchestrator.py`/`skills/` untouched) it is documented here rather than
+patched. It plausibly explains some of the actionability and completeness
+losses above, since Skill 01's output feeds every downstream skill — but
+that is a hypothesis, not verified by this entry, and should not be
+overstated.
+
+**Why this belongs in DECISIONS.md rather than only in RESULTS.md's
+tables:** the raw tables are generated deterministically and carry no
+interpretation. The interpretation — that the negative result is real,
+that it should be reported as the honest number, and that a new,
+separately-scoped defect was found in the same pass — is exactly the kind
+of judgment call this file exists to record, per #6, #7, and #8's
+established convention.
+
+
+---
+
+## 10. Skill 01's max_tokens fix, verified; an interim Haiku-judged re-check;
+    two new bugs found and fixed along the way
+
+**The fix (Step 1).** Skill 01 ("Client Discovery Intake") was configured
+with `max_tokens: 8192` while Skills 02-04 all use 16384 — the exact
+truncation signature #9 confirmed by reading a raw output file directly
+(ended mid-sentence, no closing braces, on 6 of 6 prior runs with zero
+variance). Changed to 16384 to match the other three skills. Nothing
+else in `orchestrator.py` was touched.
+
+**Verified against the actual system under test, not a stand-in.** A
+cheap sanity check first used Haiku (fast, near-free) per the original
+plan, and it was still truncated — at the *new* 16384 ceiling this time,
+with zero variance again. That result was correctly not treated as proof
+the fix failed: Haiku is a different model with different verbosity on
+this exact prompt, not the model this bug was diagnosed against or the
+model Step 3 actually uses. Re-run against Sonnet (the real system under
+test): both scenarios produced complete output well under the new ceiling
+(10,814 and 11,765 tokens, neither pinned to 16384), and both files were
+read directly and confirmed to end on a complete sentence or a closed
+table row, not mid-word. The fix is real for the model it needed to be
+real for.
+
+**Bug found #1: judge_output()'s max_tokens=1000 silently truncated with
+Haiku as judge.** The first live rerun under the fixed Skill 01 (Sonnet
+system-under-test, Haiku judge, n=1 x 2 scenarios) produced an Absolute
+Scores table that was entirely empty placeholders — every one of the 4
+`judge_output()` calls returned `{"error": "Unterminated string..."}`
+rather than crashing loudly, so the failure did not surface as an
+exception; it surfaced as missing data in the generated report. Root
+cause: `max_tokens=1000` was calibrated against Opus's more compact
+reasoning style (the original harness fix in #8 was verified with Opus as
+judge) and was too tight for Haiku's longer per-dimension reasoning on
+this identical rubric shape. `judge_pairwise()`'s `max_tokens=1500`
+completed successfully in the same run — but investigating *why* showed
+1500 was closer to the edge than it looked, since pairwise's rubric asks
+for strictly *more* content per dimension (a mandatory quote, on top of
+winner + reasoning) than the absolute rubric does (score + reasoning
+only), yet had 50% more budget and still barely cleared. Both budgets are
+now 2048, with the reasoning for each documented inline at the call site.
+
+**Recovery method, and its one honest limitation.** Rather than re-pay
+for the expensive pipeline-generation calls (~$1.8-2.1/scenario, already
+spent and still valid — only the *judge* call on top of them had failed),
+the pipeline text was reconstructed for free from the already-saved
+`state/run-*.json` files (the orchestrator's own full state persistence,
+loaded via `PipelineState.from_dict()`) and re-judged with the fixed
+budget. Baseline text was not persisted anywhere on disk in the original
+run, so it was regenerated fresh (~$0.20-0.25/scenario) and judged. **The
+limitation this creates, stated plainly:** the recovered ABSOLUTE
+baseline score and the EXISTING PAIRWISE baseline comparison are judged
+against two different baseline generations, not the same one — baseline
+generation is not deterministic, and the original text used for pairwise
+no longer exists to re-judge absolute against. This is acceptable for an
+interim, cost-minimized check; it would not be acceptable for the full
+n=3 rerun, which should generate once and judge every mode against that
+same generation.
+
+**Bug found #2: adv-01's dollar-figure regex flagged a legitimate
+citation as fabrication.** The same rerun that surfaced bug #1 also
+flipped a previously-passing adversarial case (#7's 32/32) to failing:
+`must_not_match_regex: '\$[\d,]' matched ('$5')`. Investigated by
+reproducing the case and reading the full output, not the 500-character
+excerpt results.json stores — the match was
+`"SAP's portfolio spans products ranging from ~$1,500/year (SAP Business
+One starter) to multi-million dollar enterprise programs"`, cited to
+explain *why* "We want SAP" alone is too vague to scope. That is the
+correct reasoning this case wants to see, not a fabricated client-specific
+estimate, and the plausible connection to the Skill 01 fix is real: at
+the old 8192 ceiling this explanatory passage may never have been reached
+before truncation; with it removed, the model's now-complete answer
+includes content a narrow regex hadn't been tested against.
+
+Fixed narrowly, not by loosening the check generally:
+`_find_fabricated_dollar_figure()` excludes a dollar-figure match only
+when the ~150 characters preceding it contain an explicit two-sided price
+range ("ranging from" / "range of") or a named real SAP product/tier
+(SAP Business One, S/4HANA Cloud Public/Private Edition, GROW with SAP,
+RISE with SAP). Deliberately does NOT include soft hedge words like
+"typically" or "for example" — those could still precede a genuinely
+fabricated client-specific number ("Given typical SAP projects, your
+budget is likely $2,000,000" must still be caught). Verified with 5
+targeted cases before spending any more API calls: the real false
+positive is excused; a bare fabricated figure, a hedge-worded
+fabrication, and a second named product tier all behave correctly in
+both directions. Then verified live: both adversarial cases pass
+(32/32 restored).
+
+**The honest result of this interim check, stated plainly: the pipeline
+still does not beat the baseline, and this run is the most lopsided
+result against it yet.** Blinded pairwise: baseline preferred on **8 of
+8** dimension-judgments (both scenarios x all 4 dimensions), 0 pipeline
+wins, 0 ties — more one-sided than #9's n=3/Opus-judged 13-9-2. Absolute
+scores (now real, Haiku-judged, not placeholders) show a more mixed
+picture worth naming rather than smoothing over: scenario-a's pipeline
+mean (4.25: 4/4/4/5) edges its baseline mean (3.75: 4/4/3/4), diverging
+from that same scenario's pairwise verdict (baseline swept all 4
+dimensions); scenario-b's baseline mean (5.0) clearly beats its pipeline
+mean (3.75: 4/4/3/4), consistent with its pairwise sweep. Cost and
+latency are unchanged in direction: pipeline ran $1.83-2.12/scenario
+against baseline's $0.20-0.25, and 534-649s against 259-276s.
+
+**This is n=1 per scenario — an interim, cost-minimized check, exactly as
+scoped, not a replacement for the full n=3 rerun.** The pending full
+rerun (both scenarios, 3 runs each, Sonnet system-under-test, Haiku
+judge, single baseline generation per run judged both ways to avoid this
+entry's one limitation) should replace these numbers when it runs, per
+the same standing rule #9 established: whatever it shows, including if
+the pipeline still doesn't beat the baseline, replaces the number here —
+not a rewritten version of this entry.
