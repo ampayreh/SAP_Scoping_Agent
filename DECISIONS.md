@@ -895,3 +895,140 @@ ratio should generally be considered suspicious — a future, different
 kind of outlier (say, a value 30% below its siblings rather than 50%)
 would not be caught by the current default, and that's a real, named
 limitation rather than an implied one.
+
+
+---
+
+## 15. Interview-prep rigor pass, Step 4 of 4: confidence/trace
+    groundwork — and the silent empty-output bug it immediately exposed
+
+**What Step 4 asked for** (explicitly scoped small, no UI): a
+`confidence` field and a `trace` field on each skill's output in the
+`state/` JSON, so "what does confidence actually trace to" has a
+concrete answer rather than a promise.
+
+**What was added, in `orchestrator.py`:**
+
+- `_estimate_confidence(skill_id, metrics, max_tokens)` — returns
+  `{"level": "high"|"medium"|"low", "basis": "<one line>"}`. The
+  heuristic is written into the function's docstring rather than left
+  implicit: `low` if the final response hit its token ceiling
+  (truncation risk, regardless of content); otherwise for tool-using
+  skills (02/03) the level is tied to what fraction of
+  `lookup_scope_items` calls returned a real match — `high` ≥70%,
+  `medium` ≥40%, `low` below that, on the reasoning that a module-fit
+  claim grounded in a confirmed scope item is better supported than one
+  the model reasoned out after an empty lookup. Skills 01/04 have no
+  tool-grounding signal available at all, so they report `medium` with a
+  basis that says exactly that — deliberately not `high`, because
+  "nothing was detected wrong" is not evidence of correctness.
+- `trace`: `{"tool_calls": [{tool, query, result_count, result_ids}, ...],
+  "upstream_skills": [...]}`. Both already existed implicitly — the query
+  and result were computed to build the next message, and upstream
+  dependencies were visible in `build_user_message` — but were discarded
+  once the loop moved on. Now captured in the output JSON instead of
+  living only in a terminal's scrollback.
+
+**Then verifying it against a real run immediately exposed a much larger
+bug, which is the real story of this entry.**
+
+**The bug: Skills 02 and 03 had been silently producing EMPTY output on
+most runs across this entire session.** `call_claude_with_retry()` capped
+the tool-use loop at 5 rounds:
+
+```python
+while response.stop_reason == "tool_use" and max_tool_rounds > 0:
+```
+
+On this task the model never self-terminates — it always wants another
+scope-item lookup. So the loop routinely exited with `stop_reason` still
+`"tool_use"`, leaving `response.content` holding only `tool_use` blocks
+and **zero text blocks**. The extraction line then produced `""` — a
+correct extraction from a response the model was never given the chance
+to finish. Nothing errored. The empty string was stored and billed as
+output. Confirmed across historical state files: Skills 02/03 output is
+0 bytes on the large majority of every run in this session, back to the
+first one.
+
+**Why it went unnoticed for so long, which is the uncomfortable part.**
+The eval harness judged the *concatenation* of all four skills' outputs.
+Skills 01 and 04 produced 40k+ characters each, so the combined text
+always looked substantial, and the judge always had plenty to grade.
+Nothing anywhere compared per-skill output length to zero. Every
+"pipeline vs baseline" number in #8-#14 was computed against what was
+effectively a two-skill pipeline.
+
+**The fix, and the important part about what actually fixed it.** The
+instinct is "the cap was too low, raise it." That was tried first and
+**measured to be wrong**: at 20 rounds the model made 123 tool calls,
+cost $2.45 for a single skill, and *still* returned empty text — because
+no cap value fixes a model that never stops asking for tools. The real
+fix is a forced-synthesis fallback: when the loop exhausts with the model
+still requesting tools, answer the pending tool calls, then make one
+final call with `tools` removed.
+
+**And removing `tools` alone was also verified insufficient** — a first
+version of the fallback did exactly that, and the real API returned
+`stop_reason='end_turn'` with **zero content blocks and 8 output
+tokens**: a genuinely empty response. Diagnosed by adding a permanent
+diagnostic (see below) and reproducing at a 2-round cap for roughly a
+tenth the cost, rather than guessing. Cutting a mid-task model off from
+its tools without telling it what to do instead leaves it with no
+directive, and it produces nothing. The load-bearing part is an explicit
+instruction, appended as a text block in the same user turn as the
+tool_results: *stop calling tools, write your complete final response
+now from what you have, and state plainly where lookups returned no
+match rather than omitting or inventing.* With that, Skill 02 went from
+0 characters to a complete 72,000-character analysis that explicitly
+reports which lookups succeeded and which found nothing.
+
+**Empty text is now always a reported defect**, never a silent return:
+the harness prints `stop_reason`, the actual block types, and the output
+token count. This is the check whose absence let the original bug live
+across an entire session.
+
+**`_MAX_TOOL_ROUNDS` is now a cost dial, not a correctness threshold.**
+Set to 8 — real headroom over the original 5, well short of the 123-call
+pathology at 20. Measured, all with the fallback working: 2 rounds → 16
+calls/$0.69; 8 rounds → 45 calls/$1.35; 20 rounds → 123 calls/$2.45.
+**Not empirically optimized** — no A/B eval across cap values was run, so
+it is a reasonable default, not a tuned one.
+
+**A precision bug in Step 4's own heuristic, caught on its first real
+run.** `_estimate_confidence()` compared `metrics["output_tokens"]` —
+which sums *every* call in the tool-use loop — against a *per-call*
+`max_tokens` ceiling, and reported "17377/16384," two different
+quantities. The verdict happened to be right, but the arithmetic was
+wrong and would false-trigger on any tool-heavy run that was never
+truncated. Fixed by recording `final_output_tokens` and
+`final_stop_reason` (the single call that actually produces the text —
+the only one truncation can affect) and comparing against those. The
+corrected version now reports `16384/16384` with
+`final_stop_reason: "max_tokens"` — truncation *proven*, not inferred.
+
+**What this does NOT close, named rather than quietly carried:**
+
+- **Skill 02's output is genuinely truncated.** `final_stop_reason:
+  "max_tokens"` is proof its real output does not fit the current 16384
+  ceiling. Deliberately not fixed here: raising one skill's `max_tokens`
+  would trip Step 3's own config-outlier guardrail — correctly, since it
+  would make the other three skills the outliers — so this is a
+  deliberate config decision, not a one-line change. Step 4's
+  `confidence` field now reports `low` with that exact basis on every
+  affected run, which is exactly the job it was added to do.
+- **Every pipeline number in #8-#14 needs a full rerun before it can be
+  trusted.** This commit fixes the defect and flags the data; it does not
+  regenerate it. The direction of the error is knowable, though, and
+  worth stating: the "pipeline does not beat baseline" conclusion is
+  **not overturned and is arguably reinforced** — a pipeline missing two
+  of four steps' content would plausibly score worse, not better — while
+  the **cost figures were understated**, since Skill 02 logged $0.67
+  returning nothing and costs $1.35 returning real work. The headline
+  "8.4× the baseline cost" is a floor, not the true multiple.
+- **The confidence heuristic is simple and would need refinement before
+  being trusted in production.** Tool-match rate is a reasonable proxy
+  for grounding, but it says nothing about whether the *content* built on
+  those lookups is correct, and Skills 01/04 have no grounding signal at
+  all — they report `medium` by construction, which is an honest
+  placeholder, not a measurement. Do not present this as a calibrated
+  confidence score.

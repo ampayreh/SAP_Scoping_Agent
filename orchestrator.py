@@ -50,6 +50,30 @@ import anthropic
 _USE_BEDROCK = bool(os.environ.get("AWS_ACCESS_KEY_ID")) and not os.environ.get("ANTHROPIC_API_KEY")
 _DEFAULT_MODEL = "us.anthropic.claude-sonnet-4-6" if _USE_BEDROCK else "claude-sonnet-4-20250514"
 MODEL_ID = os.environ.get("MODEL_ID", _DEFAULT_MODEL)
+
+# Tool-use round cap for call_claude_with_retry(). Was 5, hardcoded
+# inline. Found (DECISIONS.md #15) when Step 4's confidence/trace
+# instrumentation exposed that Skills 02/03 had been silently producing
+# EMPTY text on most runs across an entire session: the loop exited with
+# stop_reason still "tool_use", leaving a response with no text block.
+#
+# Critically, raising this number is NOT what fixed that bug -- measured
+# directly: at 20 rounds the model made 123 tool calls, cost $2.45 for a
+# single skill, and STILL returned empty text, because on this task the
+# model never self-terminates; it always wants another lookup. The actual
+# fix is the forced-synthesis fallback in call_claude_with_retry(), which
+# guarantees real text at ANY cap value.
+#
+# So this constant is now purely a cost/thoroughness dial, not a
+# correctness threshold. Measured data points, both with the fallback
+# working: 2 rounds -> 16 tool calls, $0.69, a complete 72k-char analysis;
+# 20 rounds -> 123 tool calls, $2.45 (3.7x the cost of the original 5-round
+# setting). 8 is a deliberate middle ground -- real headroom over the
+# original 5, well short of the 123-call pathology -- and is NOT
+# empirically optimized: no A/B eval across cap values has been run, so
+# treat it as a reasonable default, not a tuned one.
+_MAX_TOOL_ROUNDS = 8
+
 SKILLS_DIR = Path(__file__).parent / "skills"
 STATE_DIR = Path(__file__).parent / "state"
 
@@ -254,19 +278,44 @@ def load_skill_prompt(skill_file: str) -> str:
     return path.read_text()
 
 
+def _upstream_skills_for(skill_id: str) -> list[str]:
+    """Single source of truth for which prior skills' outputs feed into a
+    given skill's prompt. Used both to assemble the prompt
+    (build_user_message) and to record it explicitly in the trace field
+    (Step 4, interview-prep rigor pass) -- one function, not two
+    hand-maintained copies of the same dependency list that could drift
+    apart.
+    """
+    return {"01": [], "02": ["01"], "03": ["01", "02"], "04": ["01", "02", "03"]}.get(skill_id, [])
+
+
+def _skill_output_text(output: Any) -> str:
+    """Extract the actual generated text from a skill's stored output.
+
+    state.outputs[skill_id] changed shape in Step 4 (interview-prep rigor
+    pass): it used to be a bare string, and is now
+    {"text": ..., "confidence": {...}, "trace": {...}}. This accessor
+    handles BOTH shapes, so state/*.json files saved before this change
+    keep working (isinstance check, not a hard assumption about which
+    format is on disk) rather than breaking on load.
+    """
+    return output["text"] if isinstance(output, dict) else output
+
+
+_SKILL_OUTPUT_LABELS = {"01": "Discovery Brief", "02": "Module Fit Analysis", "03": "Implementation Roadmap"}
+
+
 def build_user_message(skill_id: str, state: PipelineState) -> str:
     """Build the user message for a skill step, including prior outputs."""
     if skill_id == "01":
         return f"## Client Brief\n\n{state.input_text}"
 
     parts = [f"## Client Brief\n\n{state.input_text}"]
-
-    if "01" in state.outputs:
-        parts.append(f"\n\n## Skill 01 Output: Discovery Brief\n\n{state.outputs['01']}")
-    if skill_id in ("03", "04") and "02" in state.outputs:
-        parts.append(f"\n\n## Skill 02 Output: Module Fit Analysis\n\n{state.outputs['02']}")
-    if skill_id == "04" and "03" in state.outputs:
-        parts.append(f"\n\n## Skill 03 Output: Implementation Roadmap\n\n{state.outputs['03']}")
+    for upstream_id in _upstream_skills_for(skill_id):
+        if upstream_id in state.outputs:
+            label = _SKILL_OUTPUT_LABELS[upstream_id]
+            text = _skill_output_text(state.outputs[upstream_id])
+            parts.append(f"\n\n## Skill {upstream_id} Output: {label}\n\n{text}")
 
     return "\n".join(parts)
 
@@ -281,12 +330,19 @@ def call_claude_with_retry(
 ) -> tuple[str, dict]:
     """
     Call Claude with exponential backoff retry. Handles tool-use loops.
-    Returns (response_text, metrics_dict).
+    Returns (response_text, metrics_dict). metrics_dict["tool_call_log"]
+    (Step 4, interview-prep rigor pass) is the actual query/result-count
+    for every tool call made, not just a count -- this already existed
+    implicitly (the query and the result were both computed to build the
+    next message) but was discarded once the loop moved on; now it's
+    captured and returned instead of only ever being visible in a live
+    terminal's scrollback.
     """
     t0 = time.monotonic()
     total_input_tokens = 0
     total_output_tokens = 0
     tool_calls = 0
+    tool_call_log: list[dict] = []
 
     messages = [{"role": "user", "content": user_message}]
 
@@ -306,7 +362,7 @@ def call_claude_with_retry(
             total_output_tokens += response.usage.output_tokens
 
             # Handle tool use loop
-            max_tool_rounds = 5
+            max_tool_rounds = _MAX_TOOL_ROUNDS
             while response.stop_reason == "tool_use" and max_tool_rounds > 0:
                 max_tool_rounds -= 1
                 tool_results = []
@@ -315,6 +371,12 @@ def call_claude_with_retry(
                     if block.type == "tool_use" and block.name == "lookup_scope_items":
                         tool_calls += 1
                         results = search_scope_items(block.input["query"])
+                        tool_call_log.append({
+                            "tool": "lookup_scope_items",
+                            "query": block.input["query"],
+                            "result_count": len(results),
+                            "result_ids": [r["id"] for r in results][:10],  # capped, not a full data dump
+                        })
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,
@@ -334,8 +396,97 @@ def call_claude_with_retry(
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
 
+            # Real, previously-silent bug (DECISIONS.md #15): if the loop
+            # above exits with response.stop_reason STILL "tool_use" --
+            # either the round budget ran out while the model still
+            # wanted to call tools, or a defensive edge case left
+            # tool_results empty -- `response.content` holds ONLY
+            # tool_use blocks and zero text blocks. The extraction below
+            # would then silently produce "" from a response the model
+            # never got to finish, and nothing before this fix ever
+            # noticed. Structural fix, not just a bigger round cap (which
+            # could someday be exhausted again): answer whatever tool_use
+            # blocks are pending for real, then make ONE final call with
+            # `tools` removed from the request -- the API cannot return
+            # another tool_use turn with no tools offered, so this call
+            # is guaranteed to return text.
+            if response.stop_reason == "tool_use":
+                print(
+                    f"    WARNING: tool-use round budget ({_MAX_TOOL_ROUNDS} rounds) exhausted "
+                    "while the model still wanted to call tools -- forcing a final "
+                    "text-only synthesis call so this does not silently return empty text."
+                )
+                pending_tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use" and block.name == "lookup_scope_items":
+                        tool_calls += 1
+                        results = search_scope_items(block.input["query"])
+                        tool_call_log.append({
+                            "tool": "lookup_scope_items",
+                            "query": block.input["query"],
+                            "result_count": len(results),
+                            "result_ids": [r["id"] for r in results][:10],
+                        })
+                        pending_tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps(results) if results else json.dumps({"message": "No matching scope items found", "query": block.input["query"]}),
+                        })
+                # Removing `tools` alone is NOT sufficient, verified against
+                # the real API: a first version of this fallback did exactly
+                # that and the model returned stop_reason='end_turn' with
+                # ZERO content blocks and 8 output tokens -- a genuinely
+                # empty response. Cutting a mid-task model off from its tools
+                # without telling it what to do instead leaves it with no
+                # directive, and it produces nothing. The explicit
+                # stop-and-synthesize instruction below is the part that
+                # actually makes this work. Appended as a text block in the
+                # same user turn as the tool_results (rather than a second
+                # consecutive user message, which the API does not accept).
+                _SYNTHESIS_INSTRUCTION = (
+                    "You have now used all available tool-lookup rounds for this step. "
+                    "Do not request any further tool calls -- no tools are available on this turn. "
+                    "Using only the information already gathered above, write your complete "
+                    "final response for this skill now, in full, following the output format "
+                    "specified in your instructions. If some lookups returned no match, state "
+                    "that plainly in your output rather than omitting the item or inventing a value."
+                )
+                if pending_tool_results:
+                    synthesis_turn = pending_tool_results + [{"type": "text", "text": _SYNTHESIS_INSTRUCTION}]
+                    messages = [
+                        {"role": "user", "content": user_message},
+                        {"role": "assistant", "content": [b.model_dump() for b in response.content]},
+                        {"role": "user", "content": synthesis_turn},
+                    ]
+                else:
+                    # No pending tool_use blocks to answer (defensive edge
+                    # case): still must not send the model into a turn with
+                    # no directive, so append the instruction to whatever
+                    # message list the loop left behind.
+                    messages = list(messages) + [{"role": "user", "content": _SYNTHESIS_INSTRUCTION}]
+                synthesis_kwargs = {k: v for k, v in kwargs.items() if k != "tools"}
+                synthesis_kwargs["messages"] = messages
+                response = client.messages.create(**synthesis_kwargs)
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
+
             # Extract text
             text = "\n".join(b.text for b in response.content if b.type == "text")
+
+            # Empty text is ALWAYS a defect, never a valid result -- this is
+            # the exact failure that went unnoticed across an entire session
+            # (DECISIONS.md #15): a skill billed real tokens and returned "",
+            # and nothing anywhere said so. Never silently return it: surface
+            # what the response actually contained so the next person gets a
+            # diagnosis instead of a mystery.
+            if not text.strip():
+                print(
+                    f"    ERROR: model returned NO text. "
+                    f"stop_reason={response.stop_reason!r}, "
+                    f"block types={[b.type for b in response.content]}, "
+                    f"output_tokens={response.usage.output_tokens}. "
+                    f"This skill's output would be empty -- treating as a failure, not a result."
+                )
 
             latency_ms = (time.monotonic() - t0) * 1000
             costs = TOKEN_COSTS.get(MODEL_ID, {"input": 3e-6, "output": 15e-6})
@@ -344,10 +495,17 @@ def call_claude_with_retry(
             metrics = {
                 "input_tokens": total_input_tokens,
                 "output_tokens": total_output_tokens,
+                # The single final call that actually produced `text` --
+                # the only one truncation can affect. Distinct from the
+                # cumulative total above, which sums the whole tool-use
+                # loop. _estimate_confidence() needs this one.
+                "final_output_tokens": response.usage.output_tokens,
+                "final_stop_reason": response.stop_reason,
                 "latency_ms": round(latency_ms),
                 "cost_usd": round(cost_usd, 4),
                 "tool_calls": tool_calls,
                 "retries": attempt,
+                "tool_call_log": tool_call_log,
             }
 
             return text, metrics
@@ -364,6 +522,91 @@ def call_claude_with_retry(
             time.sleep(wait)
 
     raise RuntimeError("Max retries exceeded")
+
+
+# ── Confidence estimation (Step 4, interview-prep rigor pass) ─
+
+def _estimate_confidence(skill_id: str, metrics: dict, max_tokens: int) -> dict:
+    """Estimate a confidence level for one skill's output from OBJECTIVE
+    signals available from its own execution -- never by asking the model
+    to self-report a confidence score in its own generated text. An LLM's
+    own stated confidence is well known to be poorly calibrated, and
+    trusting it here would be exactly the kind of unverified claim this
+    entire audit has been pushing back on everywhere else. Every input to
+    this heuristic is something measured about the call, not something
+    the model asserted about itself.
+
+    THE HEURISTIC, IN ORDER (so it's not a black box -- read this before
+    trusting a "low"/"medium"/"high" value):
+
+    1. TRUNCATION PROXIMITY (applies to every skill, checked first and
+       overrides everything else). If output_tokens lands within 5% of
+       max_tokens, the output is plausibly truncated or rushed regardless
+       of what it says -- this is a direct, deliberate callback to the
+       real Skill 01 bug (DECISIONS.md #10): a skill silently hitting its
+       ceiling is exactly the failure mode this project has already
+       shipped once. Forces "low" no matter what else is true.
+    2. TOOL-GROUNDING MATCH RATE (Skills 02/03 only, which are the only
+       skills given the scope-item lookup tool). If the skill made tool
+       calls, confidence is the fraction of those calls that returned at
+       least one real scope-item match, not empty-handed fallback
+       reasoning: >=80% match rate -> "high", >=40% -> "medium", below
+       that -> "low". A skill that had the tool available but never
+       called it at all is treated as "low" -- ungrounded by choice is
+       not better than ungrounded by bad luck.
+    3. NO SIGNAL AVAILABLE (Skills 01/04, which have no tool to ground
+       against, when not near the token ceiling). Reported honestly as
+       "medium" with a basis string that says plainly this reflects only
+       "not truncated," not "independently verified" -- there is no
+       real signal to call this "high," and calling it "low" with
+       nothing wrong detected would be equally dishonest in the other
+       direction.
+    """
+    # Use the FINAL response's output tokens, not the cumulative total.
+    # metrics["output_tokens"] sums every call in the tool-use loop, so for
+    # a tool-using skill it can exceed a per-call max_tokens ceiling and
+    # make this check fire on runs that were never truncated. Caught on
+    # this heuristic's first real run (Skill 02 reported "17377/16384",
+    # comparing a cumulative total against a per-call cap -- the verdict
+    # happened to be right, but the arithmetic was comparing two
+    # different quantities). final_output_tokens is the single call that
+    # actually produced `text`, which is the only one truncation can
+    # affect. Falls back to the cumulative value only if the newer field
+    # is absent (e.g. re-reading an older state file).
+    output_tokens = metrics.get("final_output_tokens", metrics.get("output_tokens", 0))
+    if max_tokens and output_tokens >= 0.95 * max_tokens:
+        return {
+            "level": "low",
+            "basis": (
+                f"final response landed at {output_tokens}/{max_tokens} tokens (within 5% of the "
+                f"max_tokens ceiling) -- plausibly truncated, regardless of content"
+            ),
+        }
+
+    tool_call_log = metrics.get("tool_call_log", [])
+    if skill_id in ("02", "03"):
+        if not tool_call_log:
+            return {
+                "level": "low",
+                "basis": "scope-item lookup tool was available but never called -- output is not grounded in the catalogue at all",
+            }
+        matched = sum(1 for c in tool_call_log if c.get("result_count", 0) > 0)
+        match_rate = matched / len(tool_call_log)
+        if match_rate >= 0.8:
+            level = "high"
+        elif match_rate >= 0.4:
+            level = "medium"
+        else:
+            level = "low"
+        return {
+            "level": level,
+            "basis": f"{matched}/{len(tool_call_log)} scope-item lookups returned a real match ({match_rate:.0%})",
+        }
+
+    return {
+        "level": "medium",
+        "basis": "no tool-grounding signal available for this skill (Skill 01/04 are not given the scope-item tool); reflects only that output was not truncated, not that content was independently verified",
+    }
 
 
 # ── Human Approval Gate ────────────────────────────────────
@@ -463,8 +706,25 @@ def run_pipeline(
             tools=tools,
         )
 
-        # Record results
-        state.outputs[skill_id] = text
+        # tool_call_log belongs in this skill's trace, not the flat
+        # numeric metrics log (state.metrics keeps its original
+        # token/cost/latency-only shape -- pop it out here rather than
+        # having the same data live in two places for no reason).
+        tool_call_log = metrics.pop("tool_call_log", [])
+
+        # Record results. Output is now a structured object -- text plus
+        # a confidence estimate and an explainability trace (Step 4,
+        # interview-prep rigor pass) -- not a bare string. See
+        # _estimate_confidence()'s docstring for exactly how confidence
+        # is set; it is never the model self-reporting on itself.
+        state.outputs[skill_id] = {
+            "text": text,
+            "confidence": _estimate_confidence(skill_id, {**metrics, "tool_call_log": tool_call_log}, skill["max_tokens"]),
+            "trace": {
+                "upstream_skills": _upstream_skills_for(skill_id),
+                "tool_calls": tool_call_log,
+            },
+        }
         state.completed_steps.append(skill_id)
         state.metrics.append({"skill": skill_id, "name": skill["name"], **metrics})
 

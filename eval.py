@@ -122,7 +122,7 @@ def discover_scenarios() -> list[dict]:
 
 def run_pipeline_for_eval(client: anthropic.Anthropic, input_text: str) -> dict:
     """Run the full orchestrator pipeline and capture outputs + metrics."""
-    from orchestrator import run_pipeline, PipelineState
+    from orchestrator import run_pipeline, PipelineState, _skill_output_text
 
     t0 = time.monotonic()
     state = run_pipeline(input_text, skip_gate=True)
@@ -1054,9 +1054,11 @@ def _load_or_create_reliability_fixture(client) -> tuple[str, str]:
     scenarios = {s["id"]: s for s in discover_scenarios()}
     scenario = scenarios[RELIABILITY_FIXTURE_SCENARIO]
 
+    from orchestrator import _skill_output_text
+
     pipeline_result = run_pipeline_for_eval(client, scenario["input_text"])
     pipeline_text = "\n\n---\n\n".join(
-        f"## Skill {k} Output\n\n{v}" for k, v in sorted(pipeline_result["outputs"].items())
+        f"## Skill {k} Output\n\n{_skill_output_text(v)}" for k, v in sorted(pipeline_result["outputs"].items())
     )
     baseline_result = run_baseline_for_eval(client, scenario["input_text"])
     baseline_text = baseline_result["outputs"]["combined"]
@@ -1235,8 +1237,9 @@ def main():
                 print("\n--- Pipeline ---")
                 pipeline_result = run_pipeline_for_eval(client, scenario["input_text"])
 
+                from orchestrator import _skill_output_text
                 combined_pipeline = "\n\n---\n\n".join(
-                    f"## Skill {k} Output\n\n{v}"
+                    f"## Skill {k} Output\n\n{_skill_output_text(v)}"
                     for k, v in sorted(pipeline_result["outputs"].items())
                 )
                 pipeline_text = combined_pipeline
