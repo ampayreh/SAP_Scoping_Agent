@@ -1,0 +1,1002 @@
+# SAP S/4HANA Transformation Deliverable
+## Constellation Satellite Systems (CSS)
+### Confidential — Implementation Scoping Package
+
+---
+
+# SECTION 1: STRUCTURED DISCOVERY BRIEF
+
+```json
+{
+  "discovery_brief": {
+    "metadata": {
+      "client": "Constellation Satellite Systems (CSS)",
+      "document_version": "1.0",
+      "prepared_by": "SAP S/4HANA Implementation Advisory",
+      "classification": "Confidential",
+      "date": "2025-01-15",
+      "engagement_phase": "Pre-Sales / Discovery Scoping"
+    },
+
+    "client_profile": {
+      "legal_name": "Constellation Satellite Systems (CSS)",
+      "headquarters": "Redmond, WA, USA",
+      "industry_primary": "Aerospace & Defense / High-Tech Manufacturing",
+      "industry_vertical": "Satellite Manufacturing & Launch Services",
+      "annual_revenue_usd": 1200000000,
+      "employee_count": 2500,
+      "sap_user_count": 800,
+      "sap_license_types": ["Professional", "Limited Professional"],
+      "organizational_structure": "Subsidiary of undisclosed aerospace conglomerate",
+      "parent_erp_platform": "SAP S/4HANA Cloud Private Edition",
+      "reporting_currency": "USD",
+      "additional_currencies": ["EUR"],
+      "regulatory_frameworks": ["ITAR", "EAR", "IFRS 15", "ASC 606", "SOX"]
+    },
+
+    "site_topology": {
+      "sites": [
+        {
+          "site_id": "CSS-WA-01",
+          "location": "Redmond, WA",
+          "function": "Corporate HQ + Primary Manufacturing",
+          "criticality": "Primary",
+          "estimated_users": 500
+        },
+        {
+          "site_id": "CSS-AL-01",
+          "location": "Huntsville, AL",
+          "function": "Secondary Manufacturing",
+          "criticality": "High",
+          "estimated_users": 200
+        },
+        {
+          "site_id": "CSS-FL-01",
+          "location": "Cape Canaveral, FL",
+          "function": "Launch Operations Center",
+          "criticality": "High",
+          "estimated_users": 100
+        }
+      ],
+      "remote_users_estimated": 0,
+      "data_residency_requirements": "US-only (ITAR data sovereignty)"
+    },
+
+    "current_landscape": {
+      "erp_system": {
+        "platform": "SAP ECC 6.0",
+        "enhancement_package": "EHP8",
+        "installation_year": 2015,
+        "deployment_model": "On-Premise",
+        "customization_level": "Extreme",
+        "enhancement_packs_skipped": 3,
+        "mainstream_maintenance_end": "2027-12-31",
+        "extended_maintenance_end": "2030-12-31",
+        "basis_team_fte": 4
+      },
+      "active_modules": [
+        {"module": "FI", "description": "Financial Accounting"},
+        {"module": "CO", "description": "Controlling / Profitability Analysis"},
+        {"module": "MM", "description": "Materials Management"},
+        {"module": "SD", "description": "Sales & Distribution"},
+        {"module": "PP", "description": "Production Planning"},
+        {"module": "QM", "description": "Quality Management"},
+        {"module": "PM", "description": "Plant Maintenance"},
+        {"module": "PS", "description": "Project System"},
+        {"module": "GTS", "description": "Global Trade Services (partial)"}
+      ],
+      "custom_code_inventory": {
+        "total_custom_abap_objects": 2400,
+        "custom_transactions": 47,
+        "clean_core_maturity_level": "Level C-D (High Customization Risk)",
+        "estimated_objects_eligible_for_retirement": "30-40%",
+        "estimated_objects_requiring_remediation": "35-45%",
+        "estimated_objects_replaceable_by_standard": "20-25%",
+        "custom_code_risk_rating": "CRITICAL",
+        "custom_code_notes": "2,400 ABAP objects represents a major remediation workstream. Three skipped EHPs indicate accumulated technical debt. Custom code is the primary risk factor for conversion timeline and budget."
+      },
+      "integrations": [
+        {
+          "system": "Teamcenter PLM",
+          "vendor": "Siemens",
+          "function": "Engineering BOM / PLM",
+          "integration_type": "Bidirectional",
+          "current_quality": "Poor — EBOM/MBOM sync failures",
+          "strategic_importance": "Critical"
+        },
+        {
+          "system": "Apriso / DELMIA Orchestrate",
+          "vendor": "Dassault Systèmes",
+          "function": "Manufacturing Execution System",
+          "integration_type": "Outbound to SAP",
+          "current_quality": "Poor — 4-hour data lag",
+          "strategic_importance": "Critical"
+        },
+        {
+          "system": "Salesforce CRM",
+          "vendor": "Salesforce",
+          "function": "Customer Relationship Management",
+          "integration_type": "Bidirectional",
+          "current_quality": "Functional",
+          "strategic_importance": "Medium"
+        },
+        {
+          "system": "Workday HCM",
+          "vendor": "Workday",
+          "function": "Human Capital Management",
+          "integration_type": "Outbound to SAP (cost centers, org data)",
+          "current_quality": "Functional",
+          "strategic_importance": "Medium"
+        },
+        {
+          "system": "Anaplan",
+          "vendor": "Anaplan",
+          "function": "Financial Planning & Budgeting",
+          "integration_type": "Bidirectional",
+          "current_quality": "Functional",
+          "strategic_importance": "Medium"
+        },
+        {
+          "system": "Custom Middleware",
+          "vendor": "Internal",
+          "function": "Various — 12 custom interfaces",
+          "integration_type": "Mixed",
+          "current_quality": "Variable — high maintenance burden",
+          "strategic_importance": "Medium — rationalization opportunity"
+        }
+      ]
+    },
+
+    "pain_points": [
+      {
+        "id": "PP-001",
+        "category": "Technical Debt",
+        "description": "2,400 custom ABAP objects create upgrade barriers and maintenance complexity. Three skipped enhancement packs have compounded technical debt to critical levels.",
+        "business_impact": "HIGH",
+        "s4hana_addressable": true,
+        "s4hana_solution": "Clean Core initiative with custom code remediation using SAP BTP extensions, SAP Custom Code Migration tool"
+      },
+      {
+        "id": "PP-002",
+        "category": "Manufacturing / BOM Management",
+        "description": "EBOM (Teamcenter) to MBOM (SAP PP) synchronization failures. As-built BOMs tracked manually — creating quality, traceability, and compliance risk.",
+        "business_impact": "CRITICAL",
+        "s4hana_addressable": true,
+        "s4hana_solution": "S/4HANA Manufacturing BOM management, SAP PLM integration framework, potential SAP Digital Manufacturing for as-built tracking"
+      },
+      {
+        "id": "PP-003",
+        "category": "Project Accounting / EVM",
+        "description": "Earned Value Management performed in Excel outside SAP PS. No single source of truth for program-level cost performance.",
+        "business_impact": "HIGH",
+        "s4hana_addressable": true,
+        "s4hana_solution": "S/4HANA Project System with enhanced EVM capabilities, integration with Anaplan for planning"
+      },
+      {
+        "id": "PP-004",
+        "category": "Regulatory / Compliance",
+        "description": "ITAR compliance managed through partial GTS, manual processes, and a separate access control database. Material gaps create legal and contractual risk.",
+        "business_impact": "CRITICAL",
+        "s4hana_addressable": true,
+        "s4hana_solution": "SAP GTS full implementation — License Management, Restricted Party Screening, Embargo checks. Non-negotiable Phase 1 scope item.",
+        "compliance_risk_flag": "ITAR_CRITICAL — any delay to GTS remediation creates unacceptable legal exposure"
+      },
+      {
+        "id": "PP-005",
+        "category": "Manufacturing Visibility",
+        "description": "MES-to-SAP integration has 4-hour data lag. No real-time production visibility for rate escalation (5→15 satellites/month).",
+        "business_impact": "HIGH",
+        "s4hana_addressable": true,
+        "s4hana_solution": "SAP Integration Suite for near-real-time MES integration, SAP Digital Manufacturing Cloud (DMC) evaluation, S/4HANA Production Orders with real-time confirmations"
+      },
+      {
+        "id": "PP-006",
+        "category": "Financial Close",
+        "description": "12 business day financial close versus target of 5 days. Root causes include manual reconciliations, intercompany complexity, and PS/CO misalignment.",
+        "business_impact": "HIGH",
+        "s4hana_addressable": true,
+        "s4hana_solution": "Universal Journal, real-time CO-FI integration, SAP Financial Closing Cockpit, Group Reporting for parent alignment"
+      },
+      {
+        "id": "PP-007",
+        "category": "Supply Chain Visibility",
+        "description": "18+ month lead time components have no predictive tracking. Long-lead procurement for space-grade electronics creates production risk.",
+        "business_impact": "HIGH",
+        "s4hana_addressable": true,
+        "s4hana_solution": "SAP Integrated Business Planning (IBP) for demand and supply, Predictive MRP in S/4HANA, Supply Chain Control Tower"
+      },
+      {
+        "id": "PP-008",
+        "category": "Revenue Recognition",
+        "description": "IFRS 15/ASC 606 milestone-based revenue recognition not properly configured. Long-term satellite contracts require POC/milestone methods.",
+        "business_impact": "CRITICAL",
+        "s4hana_addressable": true,
+        "s4hana_solution": "SAP Revenue Accounting and Reporting (RAR) module, S/4HANA Contract Accounting, PS-SD integration for milestone billing"
+      },
+      {
+        "id": "PP-009",
+        "category": "Organizational",
+        "description": "Two failed IT projects in 3 years (MES upgrade, PLM migration) have created organizational skepticism and change fatigue.",
+        "business_impact": "CRITICAL",
+        "s4hana_addressable": false,
+        "s4hana_solution": "Not an S/4HANA technical issue — requires structured OCM program, executive sponsorship model, and early-win delivery strategy. Top program risk."
+      }
+    ],
+
+    "strategic_drivers": [
+      {
+        "driver": "Board Mandate",
+        "description": "S/4HANA go-live by December 2028 — hard deadline driven by ECC maintenance cliff",
+        "sponsoring_executive": "Board of Directors",
+        "priority": 1
+      },
+      {
+        "driver": "Digital Factory",
+        "description": "Real-time production visibility, predictive quality, AI-assisted supply chain — rate escalation to 15 sats/month",
+        "sponsoring_executive": "CEO",
+        "priority": 2
+      },
+      {
+        "driver": "Financial Close Reduction",
+        "description": "12 days → 5 days close cycle; program-level profitability analysis (CO-PA)",
+        "sponsoring_executive": "CFO",
+        "priority": 3
+      },
+      {
+        "driver": "Integrated BOM Management",
+        "description": "Single source of truth: Engineering BOM → Manufacturing BOM → As-Built BOM",
+        "sponsoring_executive": "VP Manufacturing",
+        "priority": 4
+      },
+      {
+        "driver": "ITAR Compliance",
+        "description": "Close GTS gaps; eliminate manual ITAR processes; unified export compliance",
+        "sponsoring_executive": "CISO",
+        "priority": 5
+      },
+      {
+        "driver": "Clean Core",
+        "description": "60% reduction in custom objects; move to BTP-based extensibility model",
+        "sponsoring_executive": "CIO",
+        "priority": 6
+      },
+      {
+        "driver": "Parent Alignment",
+        "description": "Align with conglomerate SAP S/4HANA Cloud PE, Signavio, and LeanIX footprint",
+        "sponsoring_executive": "Parent CIO / Board",
+        "priority": 7
+      }
+    ],
+
+    "program_constraints": {
+      "budget": {
+        "allocated_min_usd": 15000000,
+        "allocated_max_usd": 25000000,
+        "budget_adequacy_assessment": "CONSTRAINED — see budget validation section. $15-25M is likely sufficient for a well-scoped system conversion with phased scope, but is tight given custom code volume, integration complexity, and GTS requirements. Clean Core ambition and Digital Manufacturing scope could stress the upper bound.",
+        "contingency_recommendation_pct": 15,
+        "contingency_amount_usd": 3000000
+      },
+      "timeline": {
+        "board_deadline": "2028-12-31",
+        "recommended_go_live_target": "2028-Q3",
+        "buffer_to_deadline_months": 3,
+        "total_program_duration_recommended_months": 30,
+        "recommended_program_start": "2025-Q2",
+        "notes": "30-month program from Q2 2025 to Q4 2028 is achievable but requires immediate program initiation. Delay past Q3 2025 start compresses critical custom code remediation window."
+      },
+      "change_management_risk": "CRITICAL — Two failed IT projects in 36 months. Change fatigue is the #1 program risk. Requires dedicated OCM workstream, executive co-sponsorship, and visible early wins.",
+      "parent_ecosystem_requirements": [
+        "SAP S/4HANA Cloud Private Edition deployment model",
+        "SAP Signavio — process mining and process management",
+        "LeanIX — enterprise architecture and application rationalization"
+      ],
+      "basis_capacity_risk": "Existing 4-FTE Basis team is insufficient for a conversion program of this scale. Augmentation by 4-6 additional Basis/infrastructure resources required during peak phases."
+    }
+  }
+}
+```
+
+---
+
+# SECTION 2: MODULE FIT ANALYSIS
+
+## 2.1 Scoring Methodology
+
+Each module is evaluated across five dimensions:
+- **Business Relevance** (0–10): How critical is this functional area to CSS operations?
+- **Current Pain Level** (0–10): Severity of documented pain points in this area
+- **S/4HANA Uplift** (0–10): Degree of improvement S/4HANA delivers vs. ECC
+- **Implementation Risk** (0–10, lower = higher risk): Complexity and risk of implementation
+- **Strategic Alignment** (0–10): Fit with CSS strategic drivers and parent ecosystem
+
+**Overall Fit Score** = Weighted composite (0–100)
+
+---
+
+## 2.2 Module Fit Assessment Table
+
+| # | SAP Module / Capability | Business Relevance | Current Pain Level | S/4HANA Uplift | Implementation Risk (inv.) | Strategic Alignment | **Fit Score** | **Recommendation** |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|---|
+| 1 | **FI – Financial Accounting (Universal Journal)** | 10 | 9 | 10 | 7 | 10 | **92** | ✅ Core — Phase 1 |
+| 2 | **CO – Controlling / CO-PA** | 10 | 8 | 9 | 7 | 9 | **88** | ✅ Core — Phase 1 |
+| 3 | **GTS – Global Trade Services (Full)** | 10 | 10 | 9 | 6 | 10 | **90** | 🔴 Non-Negotiable — Phase 1 |
+| 4 | **RAR – Revenue Accounting & Reporting** | 9 | 10 | 10 | 5 | 9 | **88** | ✅ Core — Phase 1 |
+| 5 | **PS – Project System (Enhanced)** | 9 | 8 | 8 | 6 | 8 | **82** | ✅ Core — Phase 1 |
+| 6 | **MM – Materials Management** | 10 | 7 | 8 | 7 | 8 | **82** | ✅ Core — Phase 1 |
+| 7 | **PP – Production Planning / MRP Live** | 10 | 9 | 9 | 5 | 9 | **85** | ✅ Core — Phase 1 |
+| 8 | **QM – Quality Management** | 9 | 7 | 8 | 6 | 8 | **79** | ✅ Core — Phase 1 |
+| 9 | **SD – Sales & Distribution** | 8 | 6 | 7 | 7 | 7 | **72** | ✅ Core — Phase 1 |
+| 10 | **PM – Plant Maintenance (EAM)** | 7 | 5 | 7 | 7 | 6 | **65** | ✅ Core — Phase 1 |
+| 11 | **IBP – Integrated Business Planning** | 9 | 9 | 10 | 6 | 9 | **88** | ✅ High Value — Phase 2 |
+| 12 | **SAP Digital Manufacturing (DMC/OEE)** | 8 | 8 | 9 | 4 | 8 | **77** | 🔶 Evaluate — Phase 2 |
+| 13 | **PLM Integration (BOM Management)** | 10 | 10 | 8 | 3 | 10 | **84** | ✅ Critical Integration — Phase 2 |
+| 14 | **EHS – Environment, Health & Safety** | 6 | 4 | 6 | 7 | 5 | **57** | 🔶 Optional — Phase 3 |
+| 15 | **Group Reporting (SEM-BCS successor)** | 7 | 6 | 9 | 7 | 9 | **77** | ✅ Parent Alignment — Phase 2 |
+| 16 | **SAP Analytics Cloud (BI/Planning)** | 8 | 7 | 9 | 7 | 8 | **80** | ✅ High Value — Phase 2 |
+| 17 | **BTP – Business Technology Platform** | 9 | 8 | 10 | 5 | 10 | **86** | ✅ Foundation — All Phases |
+| 18 | **SAP Signavio (Process Intelligence)** | 7 | 6 | 9 | 8 | 10 | **81** | ✅ Enabler — Pre-Project |
+| 19 | **LeanIX (Enterprise Architecture)** | 6 | 5 | 8 | 8 | 10 | **74** | ✅ Enabler — Pre-Project |
+| 20 | **TM – Transportation Management** | 3 | 3 | 5 | 7 | 3 | **38** | ❌ Out of Scope |
+| 21 | **RE-FX – Real Estate** | 2 | 2 | 4 | 8 | 2 | **28** | ❌ Out of Scope |
+| 22 | **GRC – Governance, Risk & Compliance** | 7 | 7 | 8 | 6 | 8 | **74** | 🔶 Evaluate — Phase 2 |
+
+---
+
+## 2.3 Critical Module Deep-Dives
+
+### 🔴 GTS — Global Trade Services (Fit Score: 90 | MANDATORY PHASE 1)
+
+**Rationale:** ITAR/EAR compliance for a satellite manufacturer is not a best-practice recommendation — it is a legal requirement. The current state (partial GTS + manual processes + separate access control database) represents **unacceptable compliance risk**. Any satellite component exported, any foreign national employee accessing controlled technical data, and any launch service transaction involves ITAR applicability. The consequences of non-compliance include criminal penalties, debarment from US government contracts, and export privilege revocation.
+
+**S/4HANA GTS Capabilities Needed:**
+- Export License Management (ITAR/EAR license tracking and automated holds)
+- Restricted Party Screening (OFAC, BIS, State Dept lists — automated with SAP Watch List Screening)
+- Embargo and Sanctions Management
+- Electronic Commerce Control List (ECCN) classification management
+- Deemed Export controls for foreign national employee access
+- Integration with Teamcenter PLM for controlled technical data classification
+
+**Implementation Considerations:** GTS in S/4HANA is significantly enhanced vs. ECC GTS. The partial ECC GTS implementation will require a full gap assessment. Recommend engaging a GTS specialist subcontractor with ITAR/EAR domain expertise alongside the core SI.
+
+---
+
+### ✅ RAR — Revenue Accounting & Reporting (Fit Score: 88 | MANDATORY PHASE 1)
+
+**Rationale:** CSS's business model — long-term satellite manufacturing contracts with milestone-based payments — is precisely the scenario IFRS 15/ASC 606 was designed to govern. Current FI configuration cannot handle:
+- Performance obligation identification and allocation across satellite contracts
+- Variable consideration (launch success milestones, on-orbit performance)
+- Percentage-of-completion revenue recognition for multi-year programs
+- Contract modification accounting
+
+**S/4HANA RAR Capabilities:**
+- Contract Management with POB (Performance Obligation) decomposition
+- Multiple revenue recognition methods: PoC, milestone, time-based
+- Integration with PS (Project System) for contract-driven milestone billing
+- Dual-book accounting (IFRS 15 recognition vs. cash billing)
+- Disclosure reports for IFRS 15 Note disclosures
+
+**Risk Note:** RAR is technically complex and organizationally impactful (requires Finance + Legal + Program Management alignment). Plan for extended UAT and parallel-run period.
+
+---
+
+### ✅ BTP — Business Technology Platform (Fit Score: 86 | CROSS-PHASE FOUNDATION)
+
+**Rationale:** BTP is the enabler for the CIO's Clean Core mandate. With 2,400 custom objects, the target is not to eliminate all extensions but to **move them to SAP-endorsed extensibility patterns** on BTP. This is what makes Clean Core achievable without eliminating business-critical functionality.
+
+**BTP Services for CSS:**
+- **SAP Integration Suite:** Replace 12 custom middleware interfaces with managed, monitored integration flows. Critical for Teamcenter ↔ S/4HANA BOM sync and MES near-real-time integration
+- **SAP Build / ABAP Cloud:** Redevelop custom transactions as BTP-native apps or ABAP Cloud extensions
+- **SAP Datasphere + SAC:** Analytics and reporting layer replacing custom ABAP reports
+- **SAP AI Business Services:** Foundation for CEO's AI-assisted supply chain planning vision
+
+---
+
+### ✅ IBP — Integrated Business Planning (Fit Score: 88 | PHASE 2)
+
+**Rationale:** 18+ month lead times for space-grade electronics, combined with a 3x production rate increase, make sophisticated supply chain planning existential — not optional. Current MRP in ECC has no predictive or probabilistic capabilities.
+
+**IBP Capabilities for CSS:**
+- **IBP for Supply:** Constrained network planning with 18-24 month planning horizons
+- **IBP for Demand:** Satellite delivery schedule → component demand decomposition
+- **IBP for Response & Supply:** Supply disruption sensing and response
+- **Supply Chain Control Tower:** Real-time visibility across CSS's supply network
+- Integration with Anaplan: IBP and Anaplan have overlapping financial planning capabilities — a rationalization assessment is recommended (consider retiring Anaplan in Phase 3)
+
+---
+
+## 2.4 Clean Core Maturity Assessment
+
+```
+CURRENT STATE: Level C-D (High Customization — Conversion Barrier)
+TARGET STATE: Level A-B (BTP-Extended Clean Core)
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  CLEAN CORE MATURITY SCALE                                          │
+│                                                                     │
+│  Level A ████████░░  Standard — No modifications                   │
+│  Level B ██████░░░░  Minimal — BTP extensions only                 │
+│  Level C ████░░░░░░  Moderate — Some ABAP mods ◄── Target          │
+│  Level D ██░░░░░░░░  Heavy — Significant custom code               │
+│  Level E ░░░░░░░░░░  Extreme — Core modifications                  │
+│                                                      ◄── CSS Today  │
+└─────────────────────────────────────────────────────────────────────┘
+
+Custom Code Disposition Plan (2,400 Objects):
+
+  RETIRE (Est. 35% / ~840 objects):
+  ├── Replaced by S/4HANA standard functionality
+  ├── No longer used (dead code — Signavio process mining to identify)
+  └── Superseded by SAP Fiori apps
+
+  REMEDIATE TO ABAP CLOUD (Est. 40% / ~960 objects):
+  ├── Business-critical logic migrated to ABAP Cloud-compliant extensions
+  ├── Custom BOM management logic → S/4HANA BOM APIs
+  └── PS/EVM enhancements → standard EVM + BTP apps
+
+  MOVE TO BTP (Est. 15% / ~360 objects):
+  ├── Reporting → SAP Analytics Cloud
+  ├── Interfaces → SAP Integration Suite
+  └── Custom UIs → SAP Build Apps / Fiori custom apps
+
+  RETAIN WITH JUSTIFICATION (Est. 10% / ~240 objects):
+  ├── Highly specialized satellite-industry logic with no standard equivalent
+  ├── ITAR-specific access control logic (until GTS fully covers)
+  └── Documented exceptions with deprecation roadmap
+```
+
+---
+
+# SECTION 3: IMPLEMENTATION ROADMAP
+
+## 3.1 Approach Recommendation: System Conversion (Brownfield)
+
+**Recommendation: System Conversion (Brownfield) to SAP S/4HANA Cloud Private Edition**
+
+**Rationale:**
+
+| Factor | Greenfield | Brownfield (Recommended) | Selective Data Migration |
+|---|---|---|---|
+| Historical data preservation | ❌ Loss of 10 years ECC history | ✅ Full history preserved | 🔶 Partial |
+| Custom code handling | Clean slate | Explicit remediation program | Hybrid |
+| Implementation risk | Very High (process redesign at scale) | High (managed conversion) | Very High (two parallel systems) |
+| Timeline to 2028 | IMPOSSIBLE at CSS scale | Achievable with phasing | High risk |
+| Cost vs. $15-25M budget | Exceeds budget | Fits with discipline | Likely exceeds budget |
+| Business disruption | Extreme | Managed | Extreme |
+| ECC investment preservation | Lost | ✅ Preserved | Partial |
+| Parent alignment (PE model) | Possible | ✅ Direct path | Possible |
+
+**Why not Greenfield?** With 800 users, 9 active modules, 2,400 custom objects, 6 integrated systems, and a 2028 hard deadline, a full Greenfield implementation is not achievable within the timeline or budget constraints. The organizational change fatigue from two failed projects makes a "rip and replace" approach politically untenable.
+
+**Why not Selective Data Migration?** Two projects in three years have failed. A third approach requiring operation of parallel ECC and S/4HANA systems simultaneously would collapse under organizational fatigue.
+
+**Brownfield with Clean Core Discipline:** The conversion preserves the ECC configuration investment, data history, and organizational familiarity while systematically addressing custom code through a parallel remediation workstream. This is the risk-balanced approach for CSS.
+
+**Deployment Model: SAP S/4HANA Cloud Private Edition (hosted)**
+- Aligns with parent conglomerate's existing PE deployment
+- US-based data center option available (ITAR data sovereignty compliance)
+- Eliminates on-premise infrastructure burden from 4-FTE Basis team
+- Enables parent-driven innovation cycle (quarterly feature releases)
+- RISE with SAP framework provides commercialization simplicity
+
+---
+
+## 3.2 Program Structure
+
+```
+PROGRAM GOVERNANCE MODEL
+
+Executive Sponsor: CSS CEO + CFO (co-sponsorship — critical for change fatigue context)
+Program Director: External (dedicated senior PM with A&D S/4HANA experience)
+Steering Committee: CEO, CFO, CIO, VP Mfg, CISO, VP Programs + Parent CIO
+SI Partner: Tier-1 SAP Partner with A&D and ITAR specialization
+GTS Sub-Contractor: Specialized export compliance + GTS implementation partner
+OCM Lead: Dedicated change management practice (not embedded in SI — independent voice)
+
+WORKSTREAM STRUCTURE:
+  WS-1: Finance & Revenue (FI/CO/RAR/PS)
+  WS-2: Supply Chain & Manufacturing (MM/PP/QM/PM)
+  WS-3: Export Compliance (GTS/ITAR)
+  WS-4: Integration & BOM (BTP/Integration Suite/Teamcenter)
+  WS-5: Custom Code Remediation (Clean Core)
+  WS-6: Infrastructure & Basis (Cloud PE migration)
+  WS-7: Analytics & Reporting (SAC/Datasphere)
+  WS-8: Organizational Change Management (OCM)
+  WS-9: Testing & Quality Assurance
+```
+
+---
+
+## 3.3 Multi-Wave Roadmap
+
+### PRE-PHASE: Foundation & Mobilization (Months 1–3 | Q2–Q3 2025)
+
+**Objective:** Establish program foundation, complete discovery, begin custom code analysis, and deliver immediate visible value to build organizational credibility.
+
+**Key Activities:**
+- Deploy SAP Signavio Process Intelligence — connect to ECC for **process mining** across all active modules. Identify actual process usage, dead transactions, and automation opportunities. This directly supports custom code retirement decisions and generates immediate business insights.
+- Deploy LeanIX — complete application portfolio rationalization. Document all 47 custom transactions, 12 middleware interfaces, and connected systems. Identify retirement candidates.
+- **SAP Custom Code Migration Tool (CCMT)** analysis — full scan of 2,400 custom objects against S/4HANA compatibility checks. Produce disposition register.
+- Assemble and onboard program team. Finalize SI selection with ITAR-cleared personnel requirements.
+- Complete technical infrastructure assessment for SAP S/4HANA Cloud PE migration
+- **Early Win #1:** Deploy Signavio dashboards for process transparency — gives business stakeholders immediate visibility and builds trust in the program
+
+**Deliverables:** Custom Code Disposition Register, Process Mining Baseline Report, Application Rationalization Map, Program Charter, Staffing Plan, RISE Commercial Agreement
+
+**Resources:** 15–20 FTE (CSS internal + SI mobilization)
+**Estimated Cost:** $1.5–2.0M
+
+---
+
+### PHASE 1: Core Finance, Compliance & Foundation (Months 4–15 | Q3 2025–Q2 2027)
+
+**Objective:** Go-live on Core Finance (FI/CO/RAR), GTS full implementation, and foundational S/4HANA conversion. This phase addresses the two most critical risk areas: ITAR compliance and financial close.
+
+**Scope:**
+```
+PHASE 1 SCOPE (Core + Compliance):
+├── S/4HANA System Conversion (Technical)
+│   ├── ECC → S/4HANA Cloud PE conversion execution
+│   ├── Universal Journal migration
+│   └── Basis/infrastructure migration to cloud PE
+│
+├── FI — Financial Accounting
+│   ├── Universal Journal (eliminates FI-CO reconciliation)
+│   ├── Asset Accounting (New Asset Accounting)
+│   ├── New GL with segment reporting
+│   └── Financial Closing Cockpit (target: 5-day close)
+│
+├── CO — Controlling
+│   ├── CO-PA (Profitability Analysis — program-level)
+│   ├── Cost Center / Internal Order restructure
+│   └── Product Cost Planning aligned to satellite BOM
+│
+├── RAR — Revenue Accounting & Reporting
+│   ├── IFRS 15 / ASC 606 compliance engine
+│   ├── Long-term contract management (POB identification)
+│   ├── Milestone-based recognition configuration
+│   └── PS-SD integration for milestone billing
+│
+├── PS — Project System
+│   ├── Enhanced EVM capabilities
+│   ├── Program Profitability via CO-PA integration
+│   └── Retire Excel-based EVM tracking
+│
+├── GTS — Global Trade Services (FULL)
+│   ├── Export License Management (ITAR/EAR)
+│   ├── Restricted Party Screening (automated)
+│   ├── Embargo/Sanctions Management
+│   ├── ECCN classification integration
+│   ├── Deemed export controls
+│   └── Retirement of manual ITAR processes + separate access DB
+│
+├── MM — Materials Management (Convert)
+│   └── Preserve existing MM config; minimal redesign
+│
+├── SD — Sales & Distribution (Convert)
+│   └── Preserve; integrate with RAR
+│
+└── Custom Code Remediation — Wave 1
+    ├── Retire all dead code (est. 35% of 2,400 objects)
+    ├── Fix ABAP compatibility issues (syntax, API changes)
+    └── Target: 1,200–1,400 objects addressed
+```
+
+**Go-Live Strategy:** Finance + GTS go-live at Month 15. Manufacturing modules (PP/QM/PM) continue in ECC with stabilized integrations during Phase 1. Phased go-live reduces blast radius — learned from prior failed projects.
+
+**Key Milestones:**
+- Month 4: Blueprint complete / Fit-to-Standard workshops
+- Month 7: Development cutover begins (custom code remediation in full swing)
+- Month 10: System Integration Testing
+- Month 12: User Acceptance Testing
+- Month 14: Parallel run (Finance) + GTS parallel compliance checking
+- Month 15: Go-Live — Finance, GTS, PS (RAR)
+
+**Resources:**
+- SI team: 35–45 FTE (peak)
+- CSS team: 20–25 FTE (business + IT)
+- GTS specialist sub: 5–8 FTE
+- OCM dedicated: 3–4 FTE
+- Total: ~65–80 FTE peak
+
+**Phase 1 Budget:** $7–9M
+**Phase 1 Key Risk:** GTS complexity — ITAR-cleared SI resources are scarce. Source early.
+
+---
+
+### PHASE 2: Manufacturing, Supply Chain & Digital Integration (Months 14–24 | Q1 2027–Q3 2028)
+
+**Objective:** Go-live on Manufacturing, supply chain planning, integrated BOM management, and near-real-time MES integration. Enables the CEO's digital factory vision and supports the 15/month production rate.
+
+> **Note:** Phase 2 begins at Month 14, overlapping Phase 1 by 2 months — the design and build of Phase 2 manufacturing scope begins before Phase 1 goes live (parallel workstream model). This is essential for the 2028 timeline.
+
+**Scope:**
+```
+PHASE 2 SCOPE (Manufacturing + Digital):
+├── PP — Production Planning
+│   ├── MRP Live (in-memory MRP replacing legacy MRP run)
+│   ├── Production Orders for satellite manufacturing
+│   ├── Rate-based planning (5→15 satellites/month)
+│   └── Integration with MES (Apriso) via Integration Suite
+│
+├── QM — Quality Management
+│   ├── Inspection lots and quality certificates
+│   ├── Nonconformance management
+│   ├── Integration with as-built BOM traceability
+│   └── Predictive quality analytics (SAC/BTP AI)
+│
+├── PM — Plant Maintenance (EAM)
+│   ├── Equipment and functional location management
+│   ├── Maintenance orders + preventive maintenance
+│   └── Integration with manufacturing assets
+│
+├── BOM Integration Architecture (CRITICAL)
+│   ├── Teamcenter ↔ S/4HANA BOM integration (SAP Integration Suite)
+│   ├── EBOM → MBOM transformation workflow in S/4HANA
+│   ├── As-Built BOM management (SAP Digital Manufacturing or custom BTP app)
+│   ├── BOM change management with version control
+│   └── Single source of truth validation: Teamcenter (EBOM master)
+│                                          S/4HANA (MBOM master)
+│
+├── MES Integration (Near-Real-Time)
+│   ├── Replace 4-hour batch integration with event-driven SAP Integration Suite
+│   ├── Production order confirmations: MES → S/4HANA (target: <5 min)
+│   ├── Quality results: Apriso → QM (real-time)
+│   └── Shop floor visibility via SAP Digital Manufacturing OEE dashboards
+│
+├── IBP — Integrated Business Planning
+│   ├── IBP for Supply (18-24 month horizon for space-grade components)
+│   ├── IBP for Demand (satellite delivery schedule decomposition)
+│   ├── Supply Chain Control Tower
+│   └── Long-lead material early warning system
+│
+├── SAP Analytics Cloud (SAC) + Datasphere
+│   ├── Operational dashboards: production rate, quality, OTD
+│   ├── CFO profitability analytics (program-level CO-PA)
+│   ├── Replace custom ABAP reports (target: 250+ reports retired)
+│   └── Parent reporting integration
+│
+├── Group Reporting
+│   ├── Intercompany eliminations
+│   ├── Consolidation for parent reporting
+│   └── IFRS/GAAP parallel reporting
+│
+└── Custom Code Remediation — Wave 2
+    ├── Manufacturing-related custom objects
+    ├── BOM and routing custom logic → standard + BTP
+    └── Target: additional 700–800 objects addressed
+    └── Cumulative target: ~60% reduction achieved
+```
+
+**Go-Live:** Month 24 (Manufacturing, Supply Chain, Digital Integration)
+- **Staggered Site Go-Live:** Redmond WA (primary) → Month 24; Huntsville AL → Month 25+1; Cape Canaveral FL → Month 25+2. Reduces simultaneous cutover risk across sites.
+
+**Resources:**
+- SI team: 40–50 FTE (peak — manufacturing workstream is large)
+- CSS team: 25–30 FTE
+- BOM/PLM integration specialists: 5–8 FTE
+- IBP specialists: 4–6 FTE
+- OCM: 4–5 FTE (manufacturing change is most disruptive)
+- Total: ~80–100 FTE peak
+
+**Phase 2 Budget:** $6–9M
+
+---
+
+### PHASE 3: Optimization, Innovation & Handover (Months 24–30 | Q3 2028–Q4 2028)
+
+**Objective:** Stabilize, optimize, complete remaining scope items, achieve Clean Core target, and formally transition to run organization. Ensure December 2028 board deadline confidence.
+
+**Scope:**
+```
+PHASE 3 SCOPE (Optimization + Innovation):
+├── Remaining Custom Code Remediation
+│   └── Final wave — achieve 60% reduction target (CIO mandate)
+│
+├── AI/ML Capabilities (CEO Digital Factory Vision)
+│   ├── Predictive quality (BTP AI — using QM data)
+│   ├── Demand sensing enhancements in IBP
+│   └── Predictive maintenance (BTP AI — PM data)
+│
+├── EHS (optional — if budget allows)
+│   └── Environment, Health & Safety for launch operations
+│
+├── GRC — Governance, Risk & Compliance
+│   └── SOX controls automation, access risk management
+│
+├── Anaplan Rationalization Assessment
+│   └── Evaluate IBP + SAC vs. Anaplan — potential retirement in 2029
+│
+├── Hypercare and Stabilization
+│   ├── 8-week formal hypercare post each go-live wave
+│   ├── Performance optimization (cloud PE sizing)
+│   └── Integration monitoring and alerting
+│
+└── Program Closeout
+    ├── Benefits realization measurement
+    ├── Clean Core certification
+    ├── Runbook and operations handover
+    └── Board deadline confirmation package
+```
+
+**Phase 3 Budget:** $2–3M
+
+---
+
+## 3.4 Master Timeline Summary
+
+```
+CONSTELLATION SATELLITE SYSTEMS — S/4HANA TRANSFORMATION TIMELINE
+═══════════════════════════════════════════════════════════════════
+
+2025                    2026                    2027                    2028
+Q2   Q3   Q4   Q1   Q2   Q3   Q4   Q1   Q2   Q3   Q4   Q1   Q2   Q3   Q4
+│    │    │    │    │    │    │    │    │    │    │    │    │    │    │
+├────┤                                                                    
+│ PRE│ Signavio/LeanIX/CCMT Discovery                                    
+├────┴─────────────────────────────────┤                                 
+│  PHASE 1: Finance + GTS + Conversion │                                 
+│  [FI/CO/RAR/PS/GTS/MM/SD]            │ ← GO-LIVE                      
+├──────────────────────────┬───────────┴──────────────────────┤         
+│  (Phase 2 Design starts) │ PHASE 2: Manufacturing + Digital  │         
+│                          │ [PP/QM/PM/IBP/BOM/MES/SAC]       │← GO-LIVE
+├──────────────────────────┴──────────────────────────────────┴────────┤ 
+│                                              PHASE 3: Optimize + AI   │←BOARD DL
+└───────────────────────────────────────────────────────────────────────┘
+
+KEY MILESTONES:
+  ◆ M+3  (Q4 2025): Pre-Phase Complete; Program Charter Signed; CCMT Report
+  ◆ M+6  (Q1 2026): Fit-to-Standard Complete; Build Begins
+  ◆ M+10 (Q3 2026): System Integration Testing — Phase 1
+  ◆ M+14 (Q4 2026): Phase 2 Design/Build begins (parallel)
+  ◆ M+15 (Q2 2027): 🚀 PHASE 1 GO-LIVE (Finance + GTS)
+  ◆ M+18 (Q3 2027): Phase 2 Integration Testing
+  ◆ M+22 (Q1 2028): Phase 2 UAT; Site Go-Live Prep
+  ◆ M+24 (Q3 2028): 🚀 PHASE 2 GO-LIVE (Manufacturing — Redmond WA)
+  ◆ M+25 (Q3 2028): 🚀 Huntsville AL Go-Live
+  ◆ M+26 (Q3 2028): 🚀 Cape Canaveral FL Go-Live
+  ◆ M+30 (Q4 2028): ✅ BOARD DEADLINE MET — Full Program Complete
+```
+
+---
+
+## 3.5 Resource Plan
+
+### 3.5.1 CSS Internal Staffing Requirements
+
+| Role | Pre-Phase | Phase 1 | Phase 2 | Phase 3 |
+|---|:---:|:---:|:---:|:---:|
+| Executive Program Sponsor (CEO/CFO) | 10% | 15% | 15% | 10% |
+| Program Director (CSS-side) | 100% | 100% | 100% | 100% |
+| Finance Lead (FI/CO/RAR) | 50% | 100% | 50% | 25% |
+| GTS / Trade Compliance Lead | 25% | 100% | 50% | 25% |
+| Manufacturing / PP Lead | 25% | 50% | 100% | 25% |
+| Supply Chain / MM Lead | 25% | 75% | 100% | 25% |
+| BOM / PLM Integration Lead | 50% | 75% | 100% | 25% |
+| QM / PM Lead | 0% | 25% | 100% | 25% |
+| IT Architecture Lead | 100% | 100% | 100% | 100% |
+| Basis / Infrastructure Lead | 100% | 100% | 100% | 75% |
+| Basis Team (augmented +4) | 50% | 100% | 100% | 75% |
+| OCM / HR Lead | 75% | 100% | 100% | 75% |
+| Training Coordinator | 25% | 75% | 100% | 75% |
+| Security / ITAR Compliance | 100% | 100% | 75% | 50% |
+| **Total CSS FTE (approx.)** | **~12** | **~22** | **~26** | **~14** |
+
+> ⚠️ **Basis Team Augmentation Required:** Current 4-FTE Basis team must be augmented by 4 additional Basis/Cloud infrastructure resources for Phases 1–2. RISE with SAP PE reduces some Basis burden, but conversion execution, client management, and transport management require dedicated resources.
+
+### 3.5.2 SI Partner Staffing (Indicative)
+
+| Role Category | Phase 1 FTE | Phase 2 FTE |
+|---|:---:|:---:|
+| Finance/RAR Consultants | 8–10 | 3–4 |
+| GTS Specialists (ITAR-cleared) | 5–7 | 2–3 |
+| Manufacturing/PP/QM/PM | 3–4 | 10–12 |
+| BOM/PLM Integration | 2–3 | 6–8 |
+| IBP Specialists | 1–2 | 5–6 |
+| SAC/Analytics | 2–3 | 4–5 |
+| BTP/Integration Suite | 4–5 | 5–6 |
+| Custom Code Remediation | 6–8 | 4–6 |
+| Technical Architecture/Basis | 3–4 | 3–4 |
+| OCM/Training | 3–4 | 4–5 |
+| Testing/QA | 3–4 | 5–6 |
+| **Total SI FTE (peak)** | **~45** | **~55** |
+
+---
+
+## 3.6 Budget Validation
+
+> ⚠️ **Critical Advisory: Budget Requires Active Management**
+>
+> The $15–25M allocation is **conditionally sufficient** for a disciplined, well-scoped Brownfield conversion. However, this budget is **not sufficient** for unlimited scope. The following validation is based on comparable A&D S/4HANA conversions.
+
+### 3.6.1 Budget Breakdown by Category
+
+| Cost Category | Low Estimate | High Estimate | Notes |
+|---|---:|---:|---|
+| **Pre-Phase (Discovery/Signavio/CCMT)** | $1.5M | $2.0M | Signavio + LeanIX licenses included |
+| **Phase 1 — SI Services** | $5.5M | $7.5M | Finance + GTS complex; GTS ITAR specialists carry premium |
+| **Phase 2 — SI Services** | $5.0M | $7.5M | Manufacturing wave; BOM integration is labor-intensive |
+| **Phase 3 — SI Services** | $1.5M | $2.0M | Optimization; smaller team |
+| **SAP Software Licenses (RISE PE)** | $2.5M | $3.5M | 3-year RISE contract (Yr 1–3); includes S/4, IBP, GTS, RAR, SAC |
+| **BTP Platform** | $0.5M | $1.0M | Integration Suite + Build + AI services |
+| **Infrastructure / Cloud Migration** | $0.5M | $0.8M | PE onboarding; network; ITAR-compliant data center setup |
+| **OCM / Training** | $0.8M | $1.2M | Dedicated OCM workstream — non-negotiable given change fatigue |
+| **Program Management (CSS PMO)** | $0.5M | $0.8M | External Program Director + PMO tooling |
+| **Contingency (15%)** | $2.8M | $3.9M | Applied to services; not software |
+| **TOTAL** | **$21.1M** | **$30.2M** | |
+
+### 3.6.2 Budget Validation Assessment
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  BUDGET ASSESSMENT: ⚠️ CONDITIONALLY ADEQUATE WITH RISKS       │
+│                                                                 │
+│  $15M lower bound: INSUFFICIENT for full proposed scope        │
+│  $20M midpoint:    Achievable with disciplined scope control   │
+│  $25M upper bound: Comfortable for Phase 1+2; Phase 3 stretch │
+│  $30M ceiling:     Required if scope expands (EHS, GRC, DMC)  │
+│                                                                 │
+│  RECOMMENDATION:                                               │
+│  ┌────────────────────────────────────────────────────────┐   │
+│  │  Immediately secure $25M as committed budget.          │   │
+│  │  Request $5M contingency reserve from parent company,  │   │
+│  │  contingent on digital factory ROI demonstration at    │   │
+│  │  Phase 1 go-live (12-month payback on close reduction  │   │
+│  │  and GTS compliance alone justifies investment).       │   │
+│  └────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Budget Risk Factors:**
+1. **GTS ITAR-cleared resources:** Premium of 25–40% over standard SAP resources
+2. **BOM integration complexity:** Teamcenter-S/4HANA BOM sync is routinely underestimated; historical projects show 40% cost overrun on PLM integration
+3. **Custom code remediation:** 2,400 objects is high. If remediation uncovers unexpected core modifications (not just enhancements), costs escalate sharply
+4. **Organization-driven delays:** Change fatigue could add 3–6 months to Phase 2; every month of delay costs approximately $600K–900K in extended SI engagement
+
+**Cost Avoidance Opportunities (Return on Investment):**
+- Financial close from 12→5 days: ~$800K/year in finance department productivity
+- GTS automation replacing manual ITAR processes: ~$400K/year + incalculable compliance risk reduction
+- Custom code reduction (60%): ~$1.2M/year in reduced ABAP maintenance costs
+- Basis infrastructure savings (RISE vs. on-premise): ~$600K/year
+- **Payback period: ~4–5 years** on $25M investment. Justifiable to Board.
+
+---
+
+## 3.7 Risk Register
+
+| # | Risk | Probability | Impact | Overall | Mitigation |
+|---|---|:---:|:---:|:---:|---|
+| R-01 | **Organizational change fatigue** — prior failed projects create resistance; key users disengage | HIGH | CRITICAL | 🔴 | Co-sponsorship model (CEO+CFO). Dedicated OCM workstream independent of SI. Early wins in Pre-Phase (Signavio). Transparent progress communications. |
+| R-02 | **Custom code remediation underestimated** — actual scope of core mods discovered during conversion execution | HIGH | HIGH | 🔴 | CCMT analysis in Pre-Phase is mandatory. Minimum 15% budget contingency. Fixed-price remediation contract clauses for known objects. |
+| R-03 | **GTS ITAR-cleared resource availability** — scarce market for ITAR-cleared SAP GTS specialists | HIGH | HIGH | 🔴 | Source GTS subcontractor immediately (pre-Phase). Include in SI RFP as mandatory capability. Consider government-cleared consulting firms. |
+| R-04 | **BOM integration complexity** — Teamcenter-to-S/4HANA EBOM/MBOM sync technically complex | HIGH | HIGH | 🔴 | Dedicated PLM integration architect. Proof-of-concept in Pre-Phase. Siemens professional services engagement. |
+| R-05 | **Timeline pressure — 2028 deadline non-negotiable** — any Phase 1 delay cascades to Phase 2 | MEDIUM | CRITICAL | 🔴 | Parallel workstream model (Phase 2 design begins M+14). Phase 1 scope locked after blueprint — no scope creep. |
+| R-06 | **Budget overrun** — $15-25M is tight for this complexity | MEDIUM | HIGH | 🟠 | Secure $25M + $5M parent contingency reserve. Scope governance board with escalation rights. |
+| R-07 | **Basis team capacity** — 4 FTE insufficient | HIGH | MEDIUM | 🟠 | Augment by 4 FTE immediately. RISE with SAP PE reduces burden but not eliminates. |
+| R-08 | **RAR complexity** — IFRS 15 configuration for satellite contracts requires Finance + Legal + Programs alignment | MEDIUM | HIGH | 🟠 | Engage RAR specialist. Extended UAT (16 weeks minimum). Parallel run for 2 reporting periods. |
+| R-09 | **Rate escalation during program** — 5→15 sats/month during the implementation creates a moving target | MEDIUM | MEDIUM | 🟡 | Freeze production processes during Phase 2 blueprint. Rate escalation testing in dedicated environment. |
+| R-10 | **Parent alignment tension** — parent PE roadmap may conflict with CSS project timeline | LOW | MEDIUM | 🟡 | Establish parent CIO as Steering Committee member. Quarterly alignment reviews. |
+
+---
+
+# SECTION 4: EXECUTIVE PROPOSAL SUMMARY
+
+---
+
+## Transformation Proposal
+# SAP S/4HANA Cloud Private Edition
+## Constellation Satellite Systems
+
+**Prepared for:** CEO, CFO, CIO, Board of Directors
+**Prepared by:** SAP S/4HANA Advisory Practice
+**Date:** January 2025
+**Status:** Executive Review Draft
+
+---
+
+### THE SITUATION: TWO CLOCKS ARE TICKING
+
+Constellation Satellite Systems faces a simultaneous strategic opportunity and technical imperative that converge on the same deadline.
+
+**The business opportunity** is substantial: scaling from 5 to 15 satellites per month represents a 3x growth in production complexity — more components, more programs, more regulatory scrutiny, more engineering changes, more financial intricacy. Your current ECC system, heavily customized and operationally constrained, cannot scale to support this trajectory. Every month of delayed modernization increases the operational risk of your production rate targets.
+
+**The technical imperative** is non-negotiable: SAP ECC mainstream maintenance ends in 2027, with extended maintenance concluding in 2030. Your Board has set December 2028 as the transformation deadline — a prudent decision that provides a 24-month buffer before the absolute end of supportability. That buffer is not large. We are recommending program initiation in Q2 2025. Any later start materially increases program risk.
+
+These two clocks — business growth and technical sunset — make this transformation both urgent and strategically vital. The question is not *whether* to transform, but *how* to do it in a way that succeeds where the organization has recently been disappointed.
+
+---
+
+### THE RECOMMENDATION IN BRIEF
+
+We recommend a **System Conversion (Brownfield) to SAP S/4HANA Cloud Private Edition**, implemented in a **phased, multi-wave approach** over **30 months**, targeting a Q3 2028 go-live — three months ahead of the Board deadline to provide stability assurance.
+
+This is not a rip-and-replace. It preserves ten years of business logic, configuration investment, and institutional knowledge embedded in your ECC system, while systematically eliminating the technical debt, manual workarounds, and compliance gaps that are constraining CSS today.
+
+---
+
+### WHY BROWNFIELD — AND WHY SAP S/4HANA CLOUD PRIVATE EDITION
+
+**System Conversion is the right approach for CSS for three reasons:**
+
+First, it is the only approach that can meet your timeline. A Greenfield reimplementation of 9 modules, 800 users, and 6 major integrations — including full GTS and RAR — cannot be responsibly executed to a 2028 deadline at CSS's scale and within the allocated budget.
+
+Second, it is the only approach your organization can absorb right now. Two failed IT projects in three years have created real organizational skepticism. A conversion — which works *with* existing processes rather than *against* them — has a fundamentally lower organizational disruption profile. The workforce recognizes the system. Process changes are introduced deliberately and explicitly, not as a byproduct of a wholesale reimplementation.
+
+Third, it preserves the investment and knowledge in your current system while creating the foundation for the Clean Core, BTP-extensible architecture that your CIO correctly identifies as the target state.
+
+**SAP S/4HANA Cloud Private Edition** is the correct deployment model because:
+- It directly aligns with your parent conglomerate's existing PE footprint — reducing future integration complexity and positioning CSS for consolidated operational and reporting benefits
+- It provides US-based data center options, satisfying ITAR data sovereignty requirements that an on-premise alternative would address less efficiently
+- It transfers infrastructure operational burden from your 4-person Basis team (which is undersized for the current environment and certainly undersized for a transformation) to SAP's managed services
+- It positions CSS on the SAP quarterly innovation release cycle — meaning the AI and digital factory capabilities your CEO envisions will continue to arrive as standard functionality, rather than requiring custom development
+
+---
+
+### THE FOUR NON-NEGOTIABLE PRIORITIES
+
+Within the broader scope, four items are non-negotiable. These are not scope preferences — they are business and legal imperatives.
+
+**1. GTS / ITAR Compliance — Phase 1, No Exceptions**
+
+Your current ITAR compliance posture — partial GTS, manual processes, and a separate access control database — is an unacceptable risk profile for a satellite manufacturer. A single ITAR violation can result in criminal penalties, debarment from US government contracts, and revocation of export privileges. Your CISO is correct to treat this as a priority, and we are elevating it to a non-negotiable Phase 1 deliverable. Full GTS implementation, including automated restricted party screening, export license management, deemed export controls, and ECCN classification, will be live before Phase 2 begins.
+
+We recommend immediately sourcing a specialized GTS subcontractor with ITAR-cleared resources. This talent pool is constrained, and early contracting is essential.
+
+**2. Revenue Recognition (RAR / IFRS 15 / ASC 606) — Phase 1**
+
+Your long-term satellite contracts require revenue recognition capabilities that your current FI configuration does not support. This is both a financial reporting risk and an investor/board credibility issue. SAP Revenue Accounting and Reporting (RAR), fully integrated with Project System, will provide the milestone-based, performance-obligation-compliant revenue recognition your CFO requires. The 5-day close target is achievable — but only with the Universal Journal and proper RAR configuration working in concert.
+
+**3. Integrated BOM Management — Phase 2 Critical Workstream**
+
+The absence of a reliable EBOM-to-MBOM-to-As-Built BOM chain is not a process inconvenience — it is a fundamental constraint on quality, traceability, and rate scalability. At 5 satellites per month, manual as-built BOM tracking is painful. At 15 per month, it is impossible. The BOM integration architecture — connecting Teamcenter (EBOM master), S/4HANA (MBOM master), and a digital as-built tracking capability — is the most technically complex workstream in Phase 2 and requires dedicated specialist resources including Siemens professional services.
+
+**4. Clean Core Discipline — Entire Program**
+
+With 2,400 custom ABAP objects, CSS carries one of the heaviest customization burdens we encounter in mid-size transformations. The CIO's 60% reduction target is achievable — but it requires active governance throughout the program, not a post-implementation cleanup effort. We will conduct a full Custom Code Migration Tool (CCMT) analysis in the Pre-Phase, producing a disposition register for every object. Roughly 35% of objects are likely candidates for immediate retirement (replaced by standard S/4HANA functionality or no longer used). Another 40% will be remediated to SAP BTP-compliant extensions. Only the irreducible specialized logic — estimated at 10% — will remain as documented technical debt with a defined deprecation roadmap.
+
+---
+
+### ADDRESSING THE ORGANIZATIONAL REALITY
+
+We must be direct about something that other proposals may not address: the organizational context of this transformation is as important as its technical design.
+
+Two IT project failures in three years have consequences beyond the projects themselves. They have created warranted skepticism about large-scale IT programs across CSS. Business leaders have been burned. Users have been asked to change how they work, disrupted in that work, and then seen the initiative fail. That experience does not disappear because this program has a larger budget and a more experienced team.
+
+We are proposing the following specific structural responses to this reality:
+
+**Co-Sponsorship Model.** This program requires CEO and CFO as co-executive sponsors — not delegated to CIO or VP-level. Visible executive commitment, demonstrated through regular all-hands program communications and Steering Committee presence, is the single most important change fatigue mitigation available.
+
+**Early Wins Before the Hard Work.** In the Pre-Phase, we will deploy SAP Signavio to generate immediate process insights from your existing ECC system. Business stakeholders will receive process mining dashboards, waste identification reports, and automation opportunity analyses within 90 days of program start — before a single line of S/4HANA configuration is written. This demonstrates program value early, builds credibility, and generates the data needed to make smart custom code retirement decisions.
+
+**Independent OCM Practice.** We are recommending that Organizational Change Management be staffed as an independent workstream with its own budget and leadership — not embedded within the SI engagement. The OCM lead should report directly to the CSS Program Director, not to the SI project manager. OCM is not a training project. It is the organizational transformation that makes the technical transformation successful.
+
+**Phased Go-Live Reduces Blast Radius.** Phase 1 (Finance + GTS) affects primarily the Finance and Trade Compliance organizations — approximately 150–200 users. Manufacturing, Supply Chain, and Operations users will see process improvements from the integration upgrades, but their core systems do not change in Phase 1. This staged approach means the program can demonstrate a successful Phase 1 go-live — a concrete, visible win — before asking the manufacturing organization to change how it works in Phase 2.
+
+**Honest Communication About What This Is.** This program is larger, more complex, and more consequential than the two prior failed projects. We will not hide that. We will, however, run it with a transparency model — real-time program dashboards available to the Steering Committee, monthly status reports to the full leadership team, and a risk escalation process with teeth — that earns trust through honesty rather than optimism.
+
+---
+
+### PARENT ALIGNMENT BENEFITS
+
+CSS's position as a subsidiary of an S/4HANA Cloud PE conglomerate is an asset, not merely a constraint. The parent's adoption of Signavio and LeanIX creates an immediate toolkit for the Pre-Phase at reduced marginal cost. The parent's S/4HANA PE environment provides a reference architecture that de-risks CSS's own deployment decisions. And the long-term vision — a consolidated conglomerate view of operational and financial performance across subsidiary companies — becomes achievable when CSS operates on the same platform.
+
+We recommend the parent CIO hold a permanent seat on the CSS Transformation Steering Committee. This ensures alignment, creates an escalation path for platform decisions, and signals to the CSS organization that this program has conglomerate-level endorsement.
+
+---
+
+### PROGRAM INVESTMENT AND RETURN
+
+| Investment Category | Amount |
+|---|---|
+| Program Services (SI + Specialists + OCM) | $14–18M |
+| Software Licenses (RISE with SAP PE, 3-year) | $3–4M |
+| Infrastructure & Platform | $1–1.5M |
+| Contingency Reserve (15%) | $2.5–3.5M |
+| **Total Program Investment** | **$21–27M** |
+
+**Our recommendation: secure $25M as committed program budget.** The $15M lower bound is insufficient for the full required scope. The $25M upper bound is achievable with disciplined scope governance. We additionally recommend requesting a $5M contingency reserve from the parent company, structured as a contingent commitment triggered only if Phase 1 delivers on its financial close and compliance commitments — which we are confident it will.
+
+**Indicative Return on Investment:**
+
+| Benefit | Annual Value |
+|---|---|
+| Financial close reduction (12→5 days, finance productivity) | ~

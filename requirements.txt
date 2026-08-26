@@ -4,3 +4,10 @@ httpx>=0.27.0
 
 # MCP server (scope-item lookup over stdio)
 mcp>=2.0.0
+
+# Optional: eval.py's significance test uses scipy.stats.wilcoxon when
+# available and falls back to a hand-rolled exact permutation test
+# (see compute_significance() in eval.py) when it is not installed --
+# the harness works either way, this just adds a second, standard-library
+# cross-check.
+scipy>=1.11.0

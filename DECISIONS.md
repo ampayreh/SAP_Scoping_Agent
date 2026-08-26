@@ -642,3 +642,393 @@ that began at #8: judge independence, blinding, computed consistency,
 pairwise comparison, two root-caused test-design bugs, a token-budget
 fix, and a retry mechanism, all verified against real committed data
 rather than asserted.
+
+
+---
+
+## 12. Interview-prep rigor pass, Step 1 of 4: confidence intervals and a
+    real significance test on the final comparison
+
+**Context.** Prepping to talk about this work honestly in an interview
+surfaced a real gap #11's headline numbers had been quietly resting on:
+"pipeline mean 4.25, baseline mean 4.25" and "16 of 24 baseline-preferred"
+were reported as means and counts with no stated uncertainty, no test of
+whether the observed difference (or lack of one) could plausibly be noise,
+and no explicit statement of how much statistical weight n=3 can actually
+bear. Every number in #11 was real, computed correctly, and honestly
+reported — but "honestly reported" and "statistically characterized" are
+not the same claim, and an interviewer asking "how confident are you in
+that tie?" deserved a computed answer, not a shrug.
+
+**What was added, in `eval.py`:**
+
+- `_bootstrap_ci()` — a percentile bootstrap 95% CI, used instead of a
+  normal-approximation interval (`mean +/- 1.96*SE`) because the normal
+  approximation's validity depends on the Central Limit Theorem having
+  enough data to approximate a Gaussian sampling distribution, which n=2-3
+  cannot supply. Documented honestly in its own docstring: with n=3, there
+  are only `3**3 = 27` distinct bootstrap resamples, so 10,000 resamples is
+  10,000 draws from a genuinely small set of 27 outcomes, not 10,000
+  independent pieces of information. The CI is real and correctly computed;
+  it is not a rich picture of the true population spread at this n, and the
+  docstring says so rather than letting the large resample count imply more
+  precision than the underlying data can support.
+- `_exact_paired_permutation_test()` — the primary significance test,
+  exact at any sample size (no normal/asymptotic approximation, unlike a
+  t-test or Wilcoxon's usual p-value). Its docstring works out the actual
+  floor: for n paired observations there are `2**n` possible sign-flip
+  relabelings, so the smallest two-sided p-value any dataset of that size
+  can ever produce is `2 / 2**n`. **At n=3, that floor is 0.25 — this test
+  cannot reach conventional significance (p<0.05) at this sample size,
+  regardless of how large the true effect is.** This is stated in the code
+  comment, computed and printed with every result (`min_achievable_p_at_this_n`),
+  and repeated in `RESULTS.md` so it can never be silently missed by a
+  reader skimming past a p-value to a mean.
+- `_wilcoxon_signed_rank()` — `scipy.stats.wilcoxon` as a second, standard
+  cross-check when scipy is installed (now optional in `requirements.txt`);
+  reports why it's unavailable rather than crashing when it isn't, or when
+  every paired difference is exactly zero (scenario-b-high-tech's case —
+  every one of 3 runs scored identically for both methods, leaving nothing
+  for a rank-based test to rank).
+- `compute_significance()` — per scenario, pairs pipeline and baseline
+  runs by matching run index (run 0's pipeline vs. run 0's baseline, etc.
+  — the closest thing this harness produces to a matched pair, since both
+  were generated within the same eval iteration), and reports mean/stdev/CI
+  for each method plus both significance tests on the paired differences.
+  Scenarios run with `--pipeline-only`/`--baseline-only` correctly produce
+  no entry, since there is nothing to pair.
+- A directional-only disclaimer, printed to stdout and written into
+  `RESULTS.md`, fires automatically whenever a scenario has fewer than 10
+  paired runs (`SIGNIFICANCE_DISCLAIMER_THRESHOLD_N`) — currently every
+  scenario on file, since `--runs 3` is the largest run so far.
+
+**Applied against the real, already-committed n=3 data (#11) at zero
+additional API cost** — this is pure recomputation over existing judge
+scores, no new model calls. Result: permutation test observed mean
+difference = 0.0 for both scenarios (an exact match to #11's "dead tie"
+finding, now with a computed p-value of 1.0 attached, at the test's own
+stated floor of p=0.25 either way), Wilcoxon agrees where it can run.
+Verified with three hand-built edge cases before trusting the real output:
+n=1 correctly reports a min-achievable-p of 1.0 (a single paired run can
+never show significance at all, the most extreme possible statement of
+"underpowered"); a pipeline-only scenario correctly produces no paired
+entry; mismatched run indices (pipeline has runs 0-1, baseline only has
+run 0) correctly pair only the shared index.
+
+**What this does NOT close, stated plainly rather than papered over.**
+This makes the size of the "not enough runs" gap explicit and computed
+instead of asserted in prose — it does not, and cannot, make n=3 into a
+statistically powered comparison. The permutation test's own floor
+(p≥0.25 at n=3) is the honest ceiling on what this comparison can ever
+claim until `--runs` is materially higher (the docstring's math applies
+identically at n=5, n=10, wherever the next real run lands — the floor is
+`2/2**n`, so it improves fast: n=5 → 0.0625, n=7 → 0.0156, both below the
+conventional 0.05 line). The bootstrap CI has the same underlying-data
+limitation: real, correctly computed, but resampling 3 points 10,000 times
+does not manufacture statistical power that 3 points do not have. Anyone
+citing this comparison should cite the tie and the p-value together, not
+the tie alone.
+
+
+---
+
+## 13. Interview-prep rigor pass, Step 2 of 4: does the judge score
+    identical input the same way twice?
+
+**Context.** Every finding in this file that cites a judge score or a
+pairwise verdict (#8-#12) implicitly assumes the judge is a stable
+measuring instrument — that if you asked it to grade the exact same
+output twice, it would give roughly the same answer. That assumption had
+never actually been tested. It was time to test it before defending any
+of those numbers in an interview.
+
+**What was added, in `eval.py`:**
+
+- `--judge-reliability-check` (opt-in flag, off by default — this is a
+  diagnostic, not a per-eval necessity) and `--reliability-n` (default 5).
+- `_load_or_create_reliability_fixture()`: on first invocation, generates
+  ONE real pipeline run and ONE real baseline run and saves both under
+  `evals/fixtures/`. This one-time generation was unavoidable — baseline
+  output has never been persisted anywhere else in this harness (see
+  #10/#11, where recovering it after the fact needed a fresh call too) —
+  but every subsequent invocation loads the saved files and makes ZERO
+  system-under-test calls. This is deliberate, not just cheap: regenerating
+  the pipeline/baseline text on each check would mix the system-under-test's
+  own non-determinism into a test specifically designed to isolate the
+  judge's, and the two sources of variance would be impossible to tell
+  apart in the result.
+- `run_judge_reliability_check()`: calls the judge N times on the identical
+  fixed pair via both `judge_output()` and `judge_pairwise()`, reports the
+  min/max/range of absolute scores per dimension per method, and the vote
+  distribution of blinded winners per dimension.
+
+**The real result (N=5, `scenario-b-high-tech`, Haiku judge), stated
+plainly:** absolute scoring is fairly stable. Pipeline scored 5/5/5/5 on
+4 of 5 calls and 4/4/4/4 uniformly lower on the fifth — one harsher call
+across the board, not scattered per-dimension noise. Baseline scored
+5/5/5/5 on all 5 calls, zero variance.
+
+**Blinded pairwise verdicts are markedly less stable, and one dimension
+has a real problem.** Completeness (4/5 pipeline, 1 flip) and
+actionability (4/5 baseline, 1 flip) show a genuine, if imperfect,
+majority. SAP grounding is weaker: baseline wins 3/5, with 2/5 flipping
+away from it. **Accuracy has no stable majority at all** — the five
+identical calls voted pipeline, pipeline, baseline, tie, baseline: a
+literal 2-2-1 split. Asked to grade the exact same accuracy comparison
+five times, the judge did not converge on an answer.
+
+**A bug found in this new code itself, before it was trusted.** The
+first version used `statistics.mode()` to compute a "majority verdict."
+`mode()` does not raise or flag a tie among equally-frequent values — it
+silently returns whichever one appears first in the input list. Against
+accuracy's real 2-2-1 split, this returned `"pipeline"` (the first vote
+in the list) as "the majority" and would have reported "3 of 5 flipped
+from the majority" — technically arithmetically true, but a misleading
+frame for a result that has no majority at all. Caught by reading the
+raw vote list before trusting the summary line, the same discipline
+every other bug in this file was caught with. Fixed: vote counts are now
+computed via `Counter`, a strict-plurality check (`len(leaders) == 1`)
+determines whether a stable majority exists at all, and the full vote
+distribution (`vote_counts`) is always reported alongside — never a
+single number standing in for a distribution that might not have a
+single most-common value.
+
+**What this means for every comparison already on file, stated
+honestly.** #9 through #11 built their findings from *independent* judge
+calls — different runs, never the identical input graded twice — so
+nothing here invalidates them; averaging across independent samples is
+exactly the right response to per-call noise, and that's what the
+aggregate pairwise counts in #11 already do. What this DOES mean: a
+*single* pairwise verdict, especially on accuracy, carries real,
+now-measured judge noise on top of whatever true quality difference
+exists between pipeline and baseline. If asked in an interview "how much
+do you trust one individual pairwise call," the honest answer is now a
+number, not a shrug: on this fixture and this judge, roughly 1-in-5
+identical calls flip on three of four dimensions, and the fourth
+dimension doesn't reliably converge at all.
+
+**What this does NOT close, stated plainly.** This is one fixture pair,
+one scenario, one judge model, N=5. It does not tell you whether Opus
+(the judge used in #11's headline n=3 result) is more or less reliable
+than Haiku, whether a different scenario would show the same
+per-dimension pattern, or whether accuracy's instability here is a
+property of this judge model generally or an artifact of this specific
+pair being genuinely close in quality (both outputs scored near-perfect
+on the absolute scale, which plausibly makes a close pairwise call
+noisier than a lopsided one — a real hypothesis, not a proven one, since
+there is only one fixture pair to check it against). A second fixture
+pair, ideally one with a clearer quality gap between methods, would be
+the natural next check — not built here, named here.
+
+
+---
+
+## 14. Interview-prep rigor pass, Step 3 of 4: a preventive guardrail,
+    not another after-the-fact discovery
+
+**Context.** Every single bug documented in this file — the Skill 01
+`max_tokens` mismatch (#10), the two adversarial-eval false positives
+(#10, #11), the judge budget/retry issues (#10, #11) — was caught the
+same way: by re-reading output, or a raw file, or a log, after a run had
+already happened. Nothing in the harness itself had ever caught a
+problem before spending an API call on it. Asked "what would have caught
+the original Skill 01 bug automatically," the honest answer before this
+step was "nothing — it took someone reading six runs' worth of raw JSON
+by hand."
+
+**What was added, in `orchestrator.py`:**
+
+`validate_skill_config(skills, field="max_tokens", outlier_ratio=0.5)`,
+called once at the very top of `run_pipeline()`, before the API client is
+even constructed. Flags any `SKILLS` entry whose `field` value is at or
+below `outlier_ratio` of the group's maximum, and reports every outlier
+found — skill ID, name, the value, the group max, the ratio — before a
+single token is spent. Deliberately generic: `field` is a parameter, not
+hardcoded to `max_tokens`, so a future per-skill numeric config value
+(a timeout, a retry count, anything comparable across the four skills)
+reuses this same function rather than needing a second copy.
+
+**Design decision, made explicitly rather than defaulted into: fail, not
+warn.** The task description offered both options. Chosen to fail
+(`raise ValueError`) because a warning is precisely the failure mode
+already demonstrated not to work — the real Skill 01 bug produced
+silently wrong output on 6 consecutive runs with nothing in the pipeline
+ever printing so much as a warning, because nothing was checking. This
+guardrail runs before any API call, so failing costs nothing (no wasted
+spend, no wasted wall-clock) and converts a scroll-past-able line into a
+decision that has to be made. An escape hatch,
+`ALLOW_CONFIG_OUTLIERS=1`, downgrades the failure to a printed warning
+for a case where the difference is genuinely intentional — the guardrail
+is a locked door with a key, not a wall with no way through.
+
+**A bug in the guardrail itself, found before it was trusted.** The
+first implementation compared with strict `<`
+(`val < outlier_ratio * group_max`). The real bug this check exists to
+catch is `max_tokens: 8192` against siblings at `16384` — and
+`8192 / 16384` is exactly `0.5`, sitting precisely on the boundary a
+strict `<` comparison excludes. Tested against the literal historical
+values before trusting the function (not just reasoned about abstractly)
+and the test caught it immediately: the exact bug this guardrail was
+built to catch would have passed through uncaught by its own first
+version. Fixed to `<=`, with the reasoning for that specific operator
+choice written into a code comment so a future edit doesn't quietly flip
+it back.
+
+**Full test coverage run before commit** (all local, zero API cost — this
+step needs no model calls): the current real `SKILLS` config (uniform
+16384s) passes silently; the exact historical bug shape raises and names
+the skill; the escape hatch downgrades to a warning; a single-skill list
+has nothing to compare against and doesn't crash; a config with a
+non-numeric field value doesn't crash; the exact boundary value (8192 vs
+16384) raises; one step past the boundary (8193 vs 16384) does not raise.
+
+**What this does NOT close, stated plainly.** This catches one shape of
+config problem — a per-skill numeric value sitting far below its
+siblings — and only for whatever field is passed to it (only
+`max_tokens` is wired into `run_pipeline()` today). It does not validate
+prompt content, tool wiring, model IDs, or any other class of
+misconfiguration; it is a first guardrail, scoped exactly as small as the
+task asked for, not a general config-linting framework. The
+`outlier_ratio=0.5` default is a deliberate, literal match to the one
+real bug on file, not a value derived from any broader analysis of what
+ratio should generally be considered suspicious — a future, different
+kind of outlier (say, a value 30% below its siblings rather than 50%)
+would not be caught by the current default, and that's a real, named
+limitation rather than an implied one.
+
+
+---
+
+## 15. Interview-prep rigor pass, Step 4 of 4: confidence/trace
+    groundwork — and the silent empty-output bug it immediately exposed
+
+**What Step 4 asked for** (explicitly scoped small, no UI): a
+`confidence` field and a `trace` field on each skill's output in the
+`state/` JSON, so "what does confidence actually trace to" has a
+concrete answer rather than a promise.
+
+**What was added, in `orchestrator.py`:**
+
+- `_estimate_confidence(skill_id, metrics, max_tokens)` — returns
+  `{"level": "high"|"medium"|"low", "basis": "<one line>"}`. The
+  heuristic is written into the function's docstring rather than left
+  implicit: `low` if the final response hit its token ceiling
+  (truncation risk, regardless of content); otherwise for tool-using
+  skills (02/03) the level is tied to what fraction of
+  `lookup_scope_items` calls returned a real match — `high` ≥70%,
+  `medium` ≥40%, `low` below that, on the reasoning that a module-fit
+  claim grounded in a confirmed scope item is better supported than one
+  the model reasoned out after an empty lookup. Skills 01/04 have no
+  tool-grounding signal available at all, so they report `medium` with a
+  basis that says exactly that — deliberately not `high`, because
+  "nothing was detected wrong" is not evidence of correctness.
+- `trace`: `{"tool_calls": [{tool, query, result_count, result_ids}, ...],
+  "upstream_skills": [...]}`. Both already existed implicitly — the query
+  and result were computed to build the next message, and upstream
+  dependencies were visible in `build_user_message` — but were discarded
+  once the loop moved on. Now captured in the output JSON instead of
+  living only in a terminal's scrollback.
+
+**Then verifying it against a real run immediately exposed a much larger
+bug, which is the real story of this entry.**
+
+**The bug: Skills 02 and 03 had been silently producing EMPTY output on
+most runs across this entire session.** `call_claude_with_retry()` capped
+the tool-use loop at 5 rounds:
+
+```python
+while response.stop_reason == "tool_use" and max_tool_rounds > 0:
+```
+
+On this task the model never self-terminates — it always wants another
+scope-item lookup. So the loop routinely exited with `stop_reason` still
+`"tool_use"`, leaving `response.content` holding only `tool_use` blocks
+and **zero text blocks**. The extraction line then produced `""` — a
+correct extraction from a response the model was never given the chance
+to finish. Nothing errored. The empty string was stored and billed as
+output. Confirmed across historical state files: Skills 02/03 output is
+0 bytes on the large majority of every run in this session, back to the
+first one.
+
+**Why it went unnoticed for so long, which is the uncomfortable part.**
+The eval harness judged the *concatenation* of all four skills' outputs.
+Skills 01 and 04 produced 40k+ characters each, so the combined text
+always looked substantial, and the judge always had plenty to grade.
+Nothing anywhere compared per-skill output length to zero. Every
+"pipeline vs baseline" number in #8-#14 was computed against what was
+effectively a two-skill pipeline.
+
+**The fix, and the important part about what actually fixed it.** The
+instinct is "the cap was too low, raise it." That was tried first and
+**measured to be wrong**: at 20 rounds the model made 123 tool calls,
+cost $2.45 for a single skill, and *still* returned empty text — because
+no cap value fixes a model that never stops asking for tools. The real
+fix is a forced-synthesis fallback: when the loop exhausts with the model
+still requesting tools, answer the pending tool calls, then make one
+final call with `tools` removed.
+
+**And removing `tools` alone was also verified insufficient** — a first
+version of the fallback did exactly that, and the real API returned
+`stop_reason='end_turn'` with **zero content blocks and 8 output
+tokens**: a genuinely empty response. Diagnosed by adding a permanent
+diagnostic (see below) and reproducing at a 2-round cap for roughly a
+tenth the cost, rather than guessing. Cutting a mid-task model off from
+its tools without telling it what to do instead leaves it with no
+directive, and it produces nothing. The load-bearing part is an explicit
+instruction, appended as a text block in the same user turn as the
+tool_results: *stop calling tools, write your complete final response
+now from what you have, and state plainly where lookups returned no
+match rather than omitting or inventing.* With that, Skill 02 went from
+0 characters to a complete 72,000-character analysis that explicitly
+reports which lookups succeeded and which found nothing.
+
+**Empty text is now always a reported defect**, never a silent return:
+the harness prints `stop_reason`, the actual block types, and the output
+token count. This is the check whose absence let the original bug live
+across an entire session.
+
+**`_MAX_TOOL_ROUNDS` is now a cost dial, not a correctness threshold.**
+Set to 8 — real headroom over the original 5, well short of the 123-call
+pathology at 20. Measured, all with the fallback working: 2 rounds → 16
+calls/$0.69; 8 rounds → 45 calls/$1.35; 20 rounds → 123 calls/$2.45.
+**Not empirically optimized** — no A/B eval across cap values was run, so
+it is a reasonable default, not a tuned one.
+
+**A precision bug in Step 4's own heuristic, caught on its first real
+run.** `_estimate_confidence()` compared `metrics["output_tokens"]` —
+which sums *every* call in the tool-use loop — against a *per-call*
+`max_tokens` ceiling, and reported "17377/16384," two different
+quantities. The verdict happened to be right, but the arithmetic was
+wrong and would false-trigger on any tool-heavy run that was never
+truncated. Fixed by recording `final_output_tokens` and
+`final_stop_reason` (the single call that actually produces the text —
+the only one truncation can affect) and comparing against those. The
+corrected version now reports `16384/16384` with
+`final_stop_reason: "max_tokens"` — truncation *proven*, not inferred.
+
+**What this does NOT close, named rather than quietly carried:**
+
+- **Skill 02's output is genuinely truncated.** `final_stop_reason:
+  "max_tokens"` is proof its real output does not fit the current 16384
+  ceiling. Deliberately not fixed here: raising one skill's `max_tokens`
+  would trip Step 3's own config-outlier guardrail — correctly, since it
+  would make the other three skills the outliers — so this is a
+  deliberate config decision, not a one-line change. Step 4's
+  `confidence` field now reports `low` with that exact basis on every
+  affected run, which is exactly the job it was added to do.
+- **Every pipeline number in #8-#14 needs a full rerun before it can be
+  trusted.** This commit fixes the defect and flags the data; it does not
+  regenerate it. The direction of the error is knowable, though, and
+  worth stating: the "pipeline does not beat baseline" conclusion is
+  **not overturned and is arguably reinforced** — a pipeline missing two
+  of four steps' content would plausibly score worse, not better — while
+  the **cost figures were understated**, since Skill 02 logged $0.67
+  returning nothing and costs $1.35 returning real work. The headline
+  "8.4× the baseline cost" is a floor, not the true multiple.
+- **The confidence heuristic is simple and would need refinement before
+  being trusted in production.** Tool-match rate is a reasonable proxy
+  for grounding, but it says nothing about whether the *content* built on
+  those lookups is correct, and Skills 01/04 have no grounding signal at
+  all — they report `medium` by construction, which is an honest
+  placeholder, not a measurement. Do not present this as a calibrated
+  confidence score.

@@ -1,7 +1,7 @@
 # SAP Scoping Agent — Evaluation Results
 
-System model (under test): `us.anthropic.claude-sonnet-4-6`
-Judge model: `us.anthropic.claude-haiku-4-5-20251001-v1:0`
+System model (under test): `claude-sonnet-4-20250514`
+Judge model: `claude-opus-5`
 Judge independence: ✅ different model line from the system under test
 Runs per scenario: 3
 
@@ -45,6 +45,41 @@ estimate. Treat it as indicative, not statistically rigorous.**
 | scenario-b-high-tech | baseline | 3 | 5.0 | 0.0 | 5 |
 | scenario-b-high-tech | pipeline | 3 | 5.0 | 0.0 | 5 |
 
+## Statistical Comparison (confidence intervals + paired significance test)
+
+For each scenario, the per-run "quality" scalar (mean of the four judged
+dimensions) is compared between pipeline and baseline, paired by matching
+run index. The 95% CI is a percentile bootstrap, not a normal-approximation
+interval — a normal approximation assumes enough data for the Central Limit
+Theorem to kick in, which 2-3 points cannot supply. The significance test is
+an exact sign-flip permutation test (always exact, no distributional
+assumption), cross-checked against `scipy.stats.wilcoxon` where available.
+
+**scenario-a-agribusiness** (3 paired runs)
+
+⚠️ **n=3 paired run(s) — this comparison is DIRECTIONAL, not proof. Do not read the numbers below as statistically confirmed at this sample size.**
+
+| Method | Mean | Stdev | 95% Bootstrap CI |
+|--------|:---:|:---:|:---:|
+| pipeline | 4.25 | 0.6614 | [3.75, 5.0] |
+| baseline | 4.25 | 0.6614 | [3.75, 5.0] |
+
+Exact permutation test: observed mean difference (pipeline − baseline) = **0.0**, p = **1.0** (minimum p this test could report at n=3 is 0.25 — the test is structurally incapable of reaching p<0.05 below that floor, regardless of effect size).
+Wilcoxon signed-rank (scipy): statistic = 3.0, p = 1.0.
+
+**scenario-b-high-tech** (3 paired runs)
+
+⚠️ **n=3 paired run(s) — this comparison is DIRECTIONAL, not proof. Do not read the numbers below as statistically confirmed at this sample size.**
+
+| Method | Mean | Stdev | 95% Bootstrap CI |
+|--------|:---:|:---:|:---:|
+| pipeline | 5.0 | 0.0 | [5.0, 5.0] |
+| baseline | 5.0 | 0.0 | [5.0, 5.0] |
+
+Exact permutation test: observed mean difference (pipeline − baseline) = **0.0**, p = **1.0** (minimum p this test could report at n=3 is 0.25 — the test is structurally incapable of reaching p<0.05 below that floor, regardless of effect size).
+Wilcoxon signed-rank: not available — all paired differences are exactly zero -- nothing for Wilcoxon to rank.
+
+
 ## Blinded Pairwise Comparison
 
 For each run where both pipeline and baseline outputs exist, the judge saw both
@@ -72,3 +107,199 @@ excerpt. Counts below are aggregated across every scenario and run.
 |------|------|--------|
 | adv-01 | refusal-on-insufficient-input | ✅ PASS |
 | adv-02 | refusal-on-non-sap-request | ✅ PASS |
+
+---
+
+## Harness Changelog
+
+Short, dated notes on changes to the eval harness itself (not to a run's
+numbers). Full rationale for each lives in `DECISIONS.md`; this is the
+one-line pointer.
+
+**2026-08-26 — Step 1 of 4, interview-rigor pass: confidence intervals +
+paired significance test.** Added `compute_significance()`: per-scenario
+mean/stdev/95%-bootstrap-CI for both methods, plus a paired comparison
+(matched by run index) using an exact sign-flip permutation test
+(always exact, no distributional assumption) cross-checked against
+`scipy.stats.wilcoxon` where installed. A directional-only disclaimer
+prints to stdout and into this file whenever a scenario has fewer than
+10 paired runs — currently every scenario, since `--runs 3` is what's
+been run so far. The permutation test's own math states its floor
+plainly: at n=3, the minimum p-value it can ever report is 0.25 — no
+effect size can cross p<0.05 at this sample size. This does not close
+the "not enough runs for real power" gap; it makes the size of that gap
+explicit and computed, rather than asserted in prose. See `DECISIONS.md`
+#12.
+
+**2026-08-26 — Step 2 of 4, interview-rigor pass: judge test-retest
+reliability check.** Added `--judge-reliability-check` (opt-in, `--reliability-n`
+controls call count, default 5): calls the judge N times on one FIXED, real
+(pipeline, baseline) pair — cached once under `evals/fixtures/` on first
+run so every future invocation makes zero system-under-test calls, isolating
+the judge's own variance from the pipeline's — using both the absolute-scoring
+prompt and the blinded pairwise prompt.
+
+**Real result, run against `scenario-b-high-tech`, N=5, judge = Haiku:**
+absolute scoring is fairly stable (pipeline: 4 identical calls scored
+5/5/5/5, 1 call scored 4/4/4/4 uniformly lower — consistent with one call
+being marginally harsher across the board, not per-dimension noise;
+baseline: perfectly stable, 5/5/5/5 on every one of 5 calls, zero variance).
+**Blinded pairwise verdicts are markedly less stable.** Completeness and
+actionability each flipped 1/5 times from a real 4/5 majority. SAP grounding
+flipped 2/5 from a weaker 3/5 majority. **Accuracy showed NO stable majority
+at all across 5 identical calls — votes split pipeline/pipeline/baseline/tie/baseline,
+a genuine 2-2-1 tie.** The judge is not converging on one answer for this
+dimension on identical input.
+
+**A bug in this new code, found and fixed before being trusted:** the first
+version used `statistics.mode()` to pick a "majority" verdict, which
+silently tie-breaks a genuine split (picks whichever value appears first in
+the list) rather than reporting that no majority exists — this would have
+mislabeled accuracy's real 2-2-1 tie as "3 of 5 disagreed with the
+majority," implying a majority that does not exist. Fixed to detect ties
+explicitly via `Counter` and report `has_stable_majority: false` with the
+full vote distribution when there is one, rather than asserting a winner.
+See `DECISIONS.md` #13.
+
+**What this means for every comparison in this file so far:** #9-#11's
+findings were built from independent judge calls (different runs, never
+the identical input judged twice), so this doesn't invalidate them — but
+it does mean a *single* pairwise verdict, especially on accuracy, carries
+real judge noise on top of whatever true quality difference exists. This
+is not fixed by this step; it is measured by it. See DECISIONS.md #13 for
+the full honest account of what this does and does not close.
+
+**2026-08-26 — Step 3 of 4, interview-rigor pass: a preventive guardrail,
+not another after-the-fact discovery.** Every bug in this file so far —
+including the Skill 01 `max_tokens: 8192` vs 16384 bug (#10) — was caught
+by re-reading output after a run, never by anything the harness itself
+checked before running. Added `validate_skill_config()` in
+`orchestrator.py`, called once at the top of `run_pipeline()`, before any
+API call: flags any `SKILLS` entry whose `max_tokens` is at or below 50%
+of the group's maximum, naming the skill and the outlier value.
+**Design decision, chosen deliberately: it FAILS (raises `ValueError`),
+not just warns.** A printed warning is exactly what would NOT have caught
+the real bug — that bug ran silently truncated for an unknown number of
+runs with no warning anywhere. Failing at startup costs nothing (zero API
+spend before the check runs) and forces a decision instead of a
+scroll-past-able line; an escape hatch (`ALLOW_CONFIG_OUTLIERS=1`) exists
+for a genuinely intentional difference, so it's a locked door with a key,
+not a wall.
+
+**A bug in this guardrail itself, found before being trusted:** the first
+version used a strict `<` comparison (`val < 0.5 * max`), which — because
+the real historical bug sits EXACTLY on the 0.5 ratio boundary
+(8192 / 16384 = 0.5 precisely) — would have silently let the one concrete
+case this check exists to catch pass through uncaught. Found by testing
+the function against the exact historical values before trusting it, not
+by inspection. Fixed to `<=`. 8 test cases run before commit, including
+the exact bug shape, the boundary itself, one step past the boundary, a
+single-skill config, a config with a non-numeric field value, and the
+escape hatch — all pass. See `DECISIONS.md` #14.
+
+**2026-08-26 — Step 3 of 4, interview-rigor pass: a preventive guardrail,
+not another after-the-fact discovery.** Every bug in this file so far —
+including the Skill 01 `max_tokens: 8192` vs 16384 bug (#10) — was caught
+by re-reading output after a run, never by anything the harness itself
+checked before running. Added `validate_skill_config()` in
+`orchestrator.py`, called once at the top of `run_pipeline()`, before any
+API call: flags any `SKILLS` entry whose `max_tokens` is at or below 50%
+of the group's maximum, naming the skill and the outlier value.
+**Design decision, chosen deliberately: it FAILS (raises `ValueError`),
+not just warns.** A printed warning is exactly what would NOT have caught
+the real bug — that bug ran silently truncated for an unknown number of
+runs with no warning anywhere. Failing at startup costs nothing (zero API
+spend before the check runs) and forces a decision instead of a
+scroll-past-able line; an escape hatch (`ALLOW_CONFIG_OUTLIERS=1`) exists
+for a genuinely intentional difference.
+
+**A bug in this guardrail itself, found before being trusted:** the first
+version used a strict `<` comparison, which — because the real historical
+bug sits EXACTLY on the 0.5 ratio boundary (8192 / 16384 = 0.5 precisely)
+— would have silently let the one concrete case this check exists to catch
+pass through uncaught. Found by testing against the exact historical
+values, not by inspection. Fixed to `<=`. 8 test cases run before commit,
+all passing. See `DECISIONS.md` #14.
+
+---
+
+## ⚠️ 2026-08-26 — READ BEFORE CITING ANY PIPELINE NUMBER ABOVE
+
+**Every pipeline quality, cost, and latency figure in this file and in
+`DECISIONS.md` #8 through #14 was measured on runs where Skills 02 and 03
+contributed EMPTY output.** Found while verifying Step 4's confidence/trace
+instrumentation — the instrumentation's first real run surfaced it.
+
+`call_claude_with_retry()` capped tool-use at 5 rounds. On this task the
+model never self-terminates (it always wants another scope-item lookup),
+so the loop routinely exited with `stop_reason` still `"tool_use"` —
+leaving a response containing only `tool_use` blocks and **no text block**.
+Text extraction then produced `""` from a response the model was never
+given the chance to finish. No error, no warning; the empty string was
+stored and billed as if it were valid output. Verified across historical
+runs: Skills 02/03 output files are 0 bytes on the large majority of every
+run in this session, going back to the first.
+
+**Why it went unnoticed:** the judge graded the *concatenation* of all four
+skills. Skills 01 and 04 each produced 40k+ characters, so the combined
+text always looked substantial. Nothing compared per-skill output length to
+zero. Every pipeline-vs-baseline number was computed against what was
+effectively a two-skill pipeline.
+
+**What this does and does not change, stated honestly:**
+
+- **The "pipeline does not beat baseline" conclusion is not overturned —
+  if anything it is reinforced.** A pipeline missing real content from two
+  of its four steps would plausibly score *worse*, not better. But the
+  comparison was not measuring what it claimed to measure.
+- **The cost figures were UNDERSTATED, not overstated.** Skill 02 logged
+  $0.67 while returning nothing; with the fix it costs $1.35 and returns a
+  real 72k-character analysis. The headline "pipeline costs 8.4× the
+  baseline" is therefore a floor, not the true multiple.
+- **Every number above needs a full rerun before it can be trusted.** Not
+  done here — this commit fixes the defect and flags the data; it does not
+  regenerate it. **The n=3 tables above are retained deliberately, marked
+  rather than deleted**, so the record shows what was believed and why it
+  was wrong.
+
+**Three fixes, in the order they were actually needed:**
+
+1. **The forced-synthesis fallback is what fixes the bug** — not the round
+   cap. If the loop exhausts with the model still requesting tools, the
+   harness answers the pending tool calls and makes one final call with
+   `tools` removed and an explicit instruction to stop and write the answer.
+   **Removing `tools` alone was verified insufficient:** a first version did
+   exactly that and the model returned `stop_reason='end_turn'` with zero
+   content blocks and 8 output tokens — a genuinely empty response. The
+   explicit instruction is the load-bearing part.
+2. **`_MAX_TOOL_ROUNDS` 5 → 8, now a cost dial, not a correctness
+   threshold.** Measured: at 20 rounds the model made 123 tool calls, cost
+   $2.45 for one skill, and *still* returned empty text before the fallback
+   existed. **Not empirically optimized** — no A/B across cap values was
+   run. Measured: 2 rounds → 16 calls/$0.69; 8 rounds → 45 calls/$1.35;
+   20 rounds → 123 calls/$2.45.
+3. **Empty text is now always reported as a defect**, never returned
+   silently: the harness prints `stop_reason`, block types, and output-token
+   count so the next person gets a diagnosis instead of a mystery.
+
+**A newly-surfaced issue this fix exposes but does NOT resolve:** Skill 02's
+synthesis output is genuinely truncated — `final_stop_reason: "max_tokens"`,
+`final_output_tokens: 16384/16384`, proven not inferred. Deliberately not
+fixed here: raising one skill's `max_tokens` would trip Step 3's own
+config-outlier guardrail (correctly — it would make the other three skills
+outliers), so it is a deliberate config decision, not a one-line change.
+Step 4's `confidence` field now reports `low` with that exact basis on every
+affected run, which is precisely the job it was added to do.
+
+**Process hazard found the hard way, recorded so it doesn't recur:** running
+`eval.py` for verification **overwrites `evals/results.json` and
+`evals/RESULTS.md` unconditionally**. A single-scenario verification run
+during this work silently clobbered the committed n=3 dataset (12 results,
+6 pairwise → 1 result, 0 pairwise) and wiped previously-committed notes from
+this file. Both were recovered from git. Anyone running `eval.py` to verify
+a code change on a branch carrying committed results should expect this and
+restore afterward — or better, the harness should refuse to overwrite
+committed results without an explicit flag. **Not fixed here** (out of this
+step's scope); named so the next person is not surprised by it.
+
+See `DECISIONS.md` #15 for the full account.
