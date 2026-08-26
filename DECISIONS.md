@@ -411,3 +411,117 @@ that it should be reported as the honest number, and that a new,
 separately-scoped defect was found in the same pass — is exactly the kind
 of judgment call this file exists to record, per #6, #7, and #8's
 established convention.
+
+
+---
+
+## 10. Skill 01's max_tokens fix, verified; an interim Haiku-judged re-check;
+    two new bugs found and fixed along the way
+
+**The fix (Step 1).** Skill 01 ("Client Discovery Intake") was configured
+with `max_tokens: 8192` while Skills 02-04 all use 16384 — the exact
+truncation signature #9 confirmed by reading a raw output file directly
+(ended mid-sentence, no closing braces, on 6 of 6 prior runs with zero
+variance). Changed to 16384 to match the other three skills. Nothing
+else in `orchestrator.py` was touched.
+
+**Verified against the actual system under test, not a stand-in.** A
+cheap sanity check first used Haiku (fast, near-free) per the original
+plan, and it was still truncated — at the *new* 16384 ceiling this time,
+with zero variance again. That result was correctly not treated as proof
+the fix failed: Haiku is a different model with different verbosity on
+this exact prompt, not the model this bug was diagnosed against or the
+model Step 3 actually uses. Re-run against Sonnet (the real system under
+test): both scenarios produced complete output well under the new ceiling
+(10,814 and 11,765 tokens, neither pinned to 16384), and both files were
+read directly and confirmed to end on a complete sentence or a closed
+table row, not mid-word. The fix is real for the model it needed to be
+real for.
+
+**Bug found #1: judge_output()'s max_tokens=1000 silently truncated with
+Haiku as judge.** The first live rerun under the fixed Skill 01 (Sonnet
+system-under-test, Haiku judge, n=1 x 2 scenarios) produced an Absolute
+Scores table that was entirely empty placeholders — every one of the 4
+`judge_output()` calls returned `{"error": "Unterminated string..."}`
+rather than crashing loudly, so the failure did not surface as an
+exception; it surfaced as missing data in the generated report. Root
+cause: `max_tokens=1000` was calibrated against Opus's more compact
+reasoning style (the original harness fix in #8 was verified with Opus as
+judge) and was too tight for Haiku's longer per-dimension reasoning on
+this identical rubric shape. `judge_pairwise()`'s `max_tokens=1500`
+completed successfully in the same run — but investigating *why* showed
+1500 was closer to the edge than it looked, since pairwise's rubric asks
+for strictly *more* content per dimension (a mandatory quote, on top of
+winner + reasoning) than the absolute rubric does (score + reasoning
+only), yet had 50% more budget and still barely cleared. Both budgets are
+now 2048, with the reasoning for each documented inline at the call site.
+
+**Recovery method, and its one honest limitation.** Rather than re-pay
+for the expensive pipeline-generation calls (~$1.8-2.1/scenario, already
+spent and still valid — only the *judge* call on top of them had failed),
+the pipeline text was reconstructed for free from the already-saved
+`state/run-*.json` files (the orchestrator's own full state persistence,
+loaded via `PipelineState.from_dict()`) and re-judged with the fixed
+budget. Baseline text was not persisted anywhere on disk in the original
+run, so it was regenerated fresh (~$0.20-0.25/scenario) and judged. **The
+limitation this creates, stated plainly:** the recovered ABSOLUTE
+baseline score and the EXISTING PAIRWISE baseline comparison are judged
+against two different baseline generations, not the same one — baseline
+generation is not deterministic, and the original text used for pairwise
+no longer exists to re-judge absolute against. This is acceptable for an
+interim, cost-minimized check; it would not be acceptable for the full
+n=3 rerun, which should generate once and judge every mode against that
+same generation.
+
+**Bug found #2: adv-01's dollar-figure regex flagged a legitimate
+citation as fabrication.** The same rerun that surfaced bug #1 also
+flipped a previously-passing adversarial case (#7's 32/32) to failing:
+`must_not_match_regex: '\$[\d,]' matched ('$5')`. Investigated by
+reproducing the case and reading the full output, not the 500-character
+excerpt results.json stores — the match was
+`"SAP's portfolio spans products ranging from ~$1,500/year (SAP Business
+One starter) to multi-million dollar enterprise programs"`, cited to
+explain *why* "We want SAP" alone is too vague to scope. That is the
+correct reasoning this case wants to see, not a fabricated client-specific
+estimate, and the plausible connection to the Skill 01 fix is real: at
+the old 8192 ceiling this explanatory passage may never have been reached
+before truncation; with it removed, the model's now-complete answer
+includes content a narrow regex hadn't been tested against.
+
+Fixed narrowly, not by loosening the check generally:
+`_find_fabricated_dollar_figure()` excludes a dollar-figure match only
+when the ~150 characters preceding it contain an explicit two-sided price
+range ("ranging from" / "range of") or a named real SAP product/tier
+(SAP Business One, S/4HANA Cloud Public/Private Edition, GROW with SAP,
+RISE with SAP). Deliberately does NOT include soft hedge words like
+"typically" or "for example" — those could still precede a genuinely
+fabricated client-specific number ("Given typical SAP projects, your
+budget is likely $2,000,000" must still be caught). Verified with 5
+targeted cases before spending any more API calls: the real false
+positive is excused; a bare fabricated figure, a hedge-worded
+fabrication, and a second named product tier all behave correctly in
+both directions. Then verified live: both adversarial cases pass
+(32/32 restored).
+
+**The honest result of this interim check, stated plainly: the pipeline
+still does not beat the baseline, and this run is the most lopsided
+result against it yet.** Blinded pairwise: baseline preferred on **8 of
+8** dimension-judgments (both scenarios x all 4 dimensions), 0 pipeline
+wins, 0 ties — more one-sided than #9's n=3/Opus-judged 13-9-2. Absolute
+scores (now real, Haiku-judged, not placeholders) show a more mixed
+picture worth naming rather than smoothing over: scenario-a's pipeline
+mean (4.25: 4/4/4/5) edges its baseline mean (3.75: 4/4/3/4), diverging
+from that same scenario's pairwise verdict (baseline swept all 4
+dimensions); scenario-b's baseline mean (5.0) clearly beats its pipeline
+mean (3.75: 4/4/3/4), consistent with its pairwise sweep. Cost and
+latency are unchanged in direction: pipeline ran $1.83-2.12/scenario
+against baseline's $0.20-0.25, and 534-649s against 259-276s.
+
+**This is n=1 per scenario — an interim, cost-minimized check, exactly as
+scoped, not a replacement for the full n=3 rerun.** The pending full
+rerun (both scenarios, 3 runs each, Sonnet system-under-test, Haiku
+judge, single baseline generation per run judged both ways to avoid this
+entry's one limitation) should replace these numbers when it runs, per
+the same standing rule #9 established: whatever it shows, including if
+the pipeline still doesn't beat the baseline, replaces the number here —
+not a rewritten version of this entry.

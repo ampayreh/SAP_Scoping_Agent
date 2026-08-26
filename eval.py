@@ -237,11 +237,22 @@ def judge_output(client, scenario_id: str, output_text: str) -> dict:
     scenario ID is sent for domain context; it does not identify which
     method produced the output, since both methods run against the same
     scenario.
+
+    max_tokens=2048, not 1000: the original 1000 was calibrated against
+    Opus's compact reasoning style and silently truncated every one of 4
+    calls when JUDGE_MODEL was swapped to Haiku (2026-08-26 run) --
+    Haiku's reasoning per dimension ran longer, producing invalid,
+    unterminated JSON that judge_output() caught and returned as
+    {"error": ...} rather than raising, so the failure did not surface as
+    a crash. 2048 gives real headroom above judge_pairwise's empirically-
+    verified-working 1500 for a task that requests LESS content per
+    dimension (score + reasoning, no mandatory quote) than pairwise does.
+    See DECISIONS.md #10.
     """
     try:
         response = client.messages.create(
             model=JUDGE_MODEL,
-            max_tokens=1000,
+            max_tokens=2048,
             system=JUDGE_RUBRIC,
             messages=[{
                 "role": "user",
@@ -288,6 +299,14 @@ def judge_pairwise(client, scenario_id: str, text_pipeline: str, text_baseline: 
     judge grading two outputs side by side against each other has to pick
     a winner or explicitly say tie, rather than defaulting most things to
     4 or 5 in isolation.
+
+    max_tokens=2048, not 1500: 1500 completed successfully with Haiku as
+    judge (2026-08-26 run), but judge_output()'s identically-shaped 1000
+    silently truncated on the same run for a task requesting LESS content
+    per dimension than this one does (this rubric also requires a
+    mandatory quote per dimension, on top of winner + reasoning) --
+    1500 was closer to the edge than it looked. Bumped for real headroom
+    rather than a margin that happened to clear once. See DECISIONS.md #10.
     """
     pipeline_is_a = random.random() < 0.5
     if pipeline_is_a:
@@ -300,7 +319,7 @@ def judge_pairwise(client, scenario_id: str, text_pipeline: str, text_baseline: 
     try:
         response = client.messages.create(
             model=JUDGE_MODEL,
-            max_tokens=1500,
+            max_tokens=2048,
             system=PAIRWISE_RUBRIC,
             messages=[{
                 "role": "user",
@@ -394,6 +413,56 @@ def compute_consistency(all_results: list[dict]) -> list[dict]:
 
 # ── Adversarial Cases ──────────────────────────────────────
 
+# adv-01's dollar-figure check needs special handling beyond a bare regex
+# search -- see DECISIONS.md #10. A first real run under this pattern
+# (2026-08-26, after the Skill 01 max_tokens fix let a previously-truncated
+# response complete) flagged: "SAP's portfolio spans products ranging from
+# ~$1,500/year (SAP Business One starter) to multi-million dollar enterprise
+# programs" as a violation. That is not a fabricated client-specific
+# estimate -- it is a real, general SAP list-price reference cited to
+# explain WHY "We want SAP" alone is too vague to scope, which is exactly
+# the reasoning this case wants to see. The bare regex can't tell the two
+# apart; _find_fabricated_dollar_figure() can, narrowly:
+_FABRICATED_DOLLAR_FIGURE_PATTERN = r"\$[\d,]"
+
+# Deliberately narrow, and deliberately does NOT include soft hedge words
+# like "typically" or "for example" -- those could still precede a
+# genuinely fabricated CLIENT-SPECIFIC estimate ("Given typical SAP
+# projects, your budget is likely $2,000,000" would still be a fabrication
+# this case should catch). Only two shapes are excluded, matching exactly
+# what the real false positive looked like: (1) an explicit two-sided price
+# RANGE ("ranging from X to Y" / "range of X to Y"), which by construction
+# cannot be a single confident client-specific number, and (2) a reference
+# to a real, named SAP product/tier, which is a general portfolio fact, not
+# an invented estimate for this client's unspecified engagement.
+_ILLUSTRATIVE_DOLLAR_CONTEXT = re.compile(
+    r"(ranging from|range of)"
+    r"|(SAP Business One|SAP S/4HANA Cloud (?:Public|Private) Edition|"
+    r"GROW with SAP|RISE with SAP)",
+    re.IGNORECASE,
+)
+
+
+def _find_fabricated_dollar_figure(text: str) -> str | None:
+    """Return the first dollar-figure match that looks like a fabricated
+    client-specific estimate, or None if every dollar-figure match in the
+    text is explained by nearby illustrative-range or named-product-tier
+    context (see the rationale above and DECISIONS.md #10).
+
+    Checks the 150 characters immediately preceding each match -- long
+    enough to catch "ranging from ... to $X" constructions where the range
+    opener precedes the first figure by more than a few words, short
+    enough that it won't accidentally absorb an unrelated qualifier from
+    an earlier, unrelated sentence.
+    """
+    for m in re.finditer(r"\$[\d,]+", text):
+        window = text[max(0, m.start() - 150):m.start()]
+        if _ILLUSTRATIVE_DOLLAR_CONTEXT.search(window):
+            continue
+        return m.group(0)
+    return None
+
+
 ADVERSARIAL_CASES = [
     {
         "id": "adv-01",
@@ -407,7 +476,7 @@ ADVERSARIAL_CASES = [
             # must not appear is a FABRICATED concrete specific: an actual
             # dollar figure or a "Phase 1:" roadmap heading, i.e. the agent
             # inventing numbers/plans it has no basis for.
-            "must_not_match_regex": [r"\$[\d,]", r"[Pp]hase\s+1\s*[:—-]"],
+            "must_not_match_regex": [_FABRICATED_DOLLAR_FIGURE_PATTERN, r"[Pp]hase\s+1\s*[:—-]"],
         },
         "rationale": "With minimal input, the agent should ask clarifying questions and flag missing budget/timeline as gaps — not fabricate a concrete budget figure or a Phase 1 roadmap.",
     },
@@ -463,9 +532,17 @@ def run_adversarial(client: anthropic.Anthropic) -> list[dict]:
                 failures.append(f"must_not_contain: '{v}' found")
 
         for pattern in case["assertions"].get("must_not_match_regex", []):
-            m = re.search(pattern, text)
-            if m:
-                failures.append(f"must_not_match_regex: '{pattern}' matched ({m.group(0)!r})")
+            if pattern == _FABRICATED_DOLLAR_FIGURE_PATTERN:
+                m = _find_fabricated_dollar_figure(text)
+                if m:
+                    failures.append(
+                        f"must_not_match_regex: '{pattern}' matched ({m!r}) "
+                        "with no illustrative-range/named-product-tier context nearby"
+                    )
+            else:
+                m = re.search(pattern, text)
+                if m:
+                    failures.append(f"must_not_match_regex: '{pattern}' matched ({m.group(0)!r})")
 
         passed = len(failures) == 0
         print("PASS" if passed else f"FAIL ({failures})")

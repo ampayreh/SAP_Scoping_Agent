@@ -62,7 +62,7 @@ TOKEN_COSTS = {
 }
 
 SKILLS = [
-    {"id": "01", "name": "Client Discovery Intake", "file": "01-client-discovery-intake.md", "max_tokens": 8192},
+    {"id": "01", "name": "Client Discovery Intake", "file": "01-client-discovery-intake.md", "max_tokens": 16384},
     {"id": "02", "name": "Module Fit Analyzer", "file": "02-module-fit-analyzer.md", "max_tokens": 16384},
     {"id": "03", "name": "Implementation Roadmap", "file": "03-implementation-roadmap.md", "max_tokens": 16384},
     {"id": "04", "name": "Executive Proposal Drafter", "file": "04-executive-proposal-drafter.md", "max_tokens": 16384, "gate": True},
