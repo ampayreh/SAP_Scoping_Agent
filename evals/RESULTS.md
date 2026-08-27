@@ -407,3 +407,49 @@ aws service-quotas list-service-quotas --service-code bedrock --region us-east-1
 Do **not** pass `--no-paginate` — it silently returns only the first page
 (6 quotas instead of 1,179), which briefly produced a confidently wrong
 "no matching quotas" reading during this investigation.
+
+---
+
+## 2026-08-27 — CORRECTION to the note above, and attempt 3
+
+**The quota is a ROLLING 24-HOUR WINDOW, not a calendar-day reset.** The
+note above left this open; it was then asserted to be UTC-midnight-based.
+That was wrong. Correcting it here rather than editing the earlier note, so
+the mistake stays visible.
+
+**Evidence.** Attempt 3 (02:17 UTC, 08-27) failed after 2 of 6 pipelines
+with the same `429 Too many tokens per day`:
+
+| Hypothesis | Tokens in window | Explains the failure? |
+|---|---|---|
+| Calendar day (08-27 only) | 2,038,209 — 18.9% of cap | **No** |
+| **Rolling 24h** | **8,065,971 — 74.7% of cap** | **Yes** |
+
+Requests had briefly succeeded 6.7 hours after the previous failure, which
+looked like a reset. It was partial recovery: earlier runs aging out of the
+rolling window freed just enough headroom for about two runs.
+
+**Attempt 3 outcome:** 2 of 6 iterations completed. Zero per-minute
+throttling. The daily-quota fast-fail worked — failed in seconds, not 450s.
+
+**Checkpointing worked on its first real failure.** Four scored results and
+two blinded pairwise comparisons (`scenario-a-agribusiness`, runs 0 and 1)
+preserved in `evals/results.checkpoint.json`. Committed `results.json`
+untouched. Attempt 1 had lost everything; attempt 3 lost nothing.
+
+**No conclusions are drawn from that fragment.** Two runs on one scenario
+is not a result. The scores are kept for provenance only — not analysed,
+not compared, and they do **not** lift the retraction above.
+
+**Structural finding, independent of any eventual quality number:** at
+~1.0M tokens per pipeline run against a 10.8M rolling cap, this account
+supports **about ten pipeline runs per 24 hours, total** — and one n=3
+matrix needs ~60% of that. Input tokens are ~94% of consumption (8.66M of
+9.16M measured on 08-26) because Skills 02/03 re-send an accumulating
+conversation every tool round. **The pipeline is costly enough that
+evaluating it is itself rate-limited.**
+
+**When a full run fits** (needs prior-24h use ≤ 4.29M): first viable around
+**18:30 UTC 08-27**; window fully clear **04:30 UTC 08-28**.
+
+**Status: the retraction stands. Three attempts, no citable numbers.**

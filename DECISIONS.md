@@ -1203,3 +1203,81 @@ correct rate-limit backoff, daily-quota fast-fail, checkpointing, and a
 measured understanding of the account's actual ceiling -- but it is not the
 deliverable that was asked for, and calling it one would be dressing up a
 miss.
+
+
+---
+
+## 18. CORRECTION: the daily quota is a rolling 24-hour window, not a
+    calendar-day reset — and the third rerun attempt
+
+**This entry corrects a factual claim made in #17.** That entry left the
+reset boundary open ("the practical test is to retry and see"). It was then
+asserted — by me, in conversation, and repeated back as confirmed — that the
+quota resets at 00:00 UTC. **That is wrong. It is a rolling 24-hour
+window.** The correction matters because scheduling any future run depends
+on it.
+
+**How the wrong conclusion was reached, since the reasoning error is the
+instructive part.** After the #17 failure at 19:30 UTC on 2026-08-26,
+requests succeeded again at 02:17 UTC on 08-27 — 6.7 hours later. The
+reasoning was: 6.7h is far short of 24h, so a rolling window cannot explain
+the recovery; UTC midnight had passed in the interval; therefore it is
+calendar-based. Both premises were true and the conclusion did not follow.
+A rolling window explains the recovery perfectly well: by 02:17, the runs
+from 01:44–02:14 the previous day had aged out, freeing just enough headroom
+for about two more runs. Recovery was partial, and partial recovery is
+exactly what a rolling window looks like — it was read as a full reset
+because a full reset was the expected answer.
+
+**The data, which is unambiguous.** Attempt 3 (02:17 UTC, 08-27) failed
+after 2 of 6 pipelines with the same `429 Too many tokens per day`:
+
+| Hypothesis | Tokens in window | Consistent with failure? |
+|---|---|---|
+| Calendar day (08-27 only) | 2,038,209 (18.9% of cap) | **No** — nowhere near the limit |
+| **Rolling 24h** | **8,065,971 (74.7% of cap)** | **Yes** — plus baselines, judge calls, and the two crashed runs that consumed tokens without writing metrics files |
+
+Under the calendar hypothesis the failure is inexplicable. Under the rolling
+hypothesis it is arithmetic. Rolling is correct.
+
+**Attempt 3's outcome, and the one thing that went right.** 2 of 6
+iterations completed before the quota was hit. Zero per-minute rate-limit
+events; the daily-quota fast-fail from #17 worked exactly as designed,
+raising in seconds instead of burning 450s of useless backoff.
+
+**Checkpointing (#17) paid for itself on its first real failure.** Attempt 1
+lost everything it had spent. Attempt 3 lost nothing: four scored results
+and two blinded pairwise comparisons for `scenario-a-agribusiness` runs 0
+and 1 were preserved in `evals/results.checkpoint.json`, on a separate path,
+with the committed `results.json` untouched. That is the entire argument for
+the fix, demonstrated rather than asserted.
+
+**No conclusions are drawn from the partial data, deliberately.** Two runs
+on one scenario is a fragment, not a result. The scores are recorded in the
+checkpoint for provenance; they are not analysed, averaged, or compared
+here, and they do not lift the #15 retraction. Reporting a fragment as a
+finding is precisely the failure mode this file exists to prevent.
+
+**A structural finding worth more than the run itself.** At roughly 1.0M
+tokens per pipeline run against a 10.8M rolling cap, **this account
+supports about ten pipeline runs in any 24-hour period, total.** A single
+n=3 evaluation matrix consumes ~60% of that ceiling. This is not a
+provisioning accident — it follows from the pipeline's own design, where
+Skills 02/03 re-send an accumulating conversation on every tool-use round,
+making input tokens ~94% of consumption (8.66M of 9.16M measured on
+08-26). **The orchestrated pipeline is expensive enough that evaluating it
+is itself rate-limited**, which is a legitimate operational data point for
+the same cost question #11 and #15 were asking, and it holds regardless of
+what the eventual quality numbers say.
+
+**When a full run actually fits, computed from the rolling window rather
+than guessed:** a 6.5M-token run needs prior-24h consumption at or below
+4.29M. Given the measured history, that first occurs around **18:30 UTC on
+2026-08-27**, and the window is fully clear by **04:30 UTC on 08-28**.
+
+**Status unchanged: the #15 retraction stands.** Three attempts, no
+citable numbers. What is now solid is the diagnosis — a hard,
+non-adjustable, rolling-window ceiling, with the workload's footprint
+against it measured, the failure mode fast and cheap instead of slow and
+total, and partial work preserved. That is real progress on the blocker and
+it is still not the deliverable that was requested.
