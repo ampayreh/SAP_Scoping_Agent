@@ -1032,3 +1032,252 @@ corrected version now reports `16384/16384` with
   all — they report `medium` by construction, which is an honest
   placeholder, not a measurement. Do not present this as a calibrated
   confidence score.
+
+
+---
+
+## 16. Cap calibration: measuring whether the tool budget pays for itself
+
+**Why this ran.** #15 set `_MAX_TOOL_ROUNDS = 8` and said plainly it was
+"a reasonable default, not a tuned one — no A/B eval across cap values
+has been run." Before spending on a full rerun at that value, that gap
+was closed. The working hypothesis going in was that the cheap option
+would win: an earlier 2-round run had produced a complete 72k-character
+analysis, which suggested the extra rounds were waste.
+
+**Method, and one design choice worth naming.** Generate the same
+scenario twice (cap 2, cap 8), score both absolutely, then run the
+blinded pairwise comparison **five times on the identical pair**.
+Generation is the expensive part and runs once per cap; judge calls are
+Haiku and cost pennies. So repeating the *comparison* rather than the
+*generation* buys direct coverage of the ~1-in-5 verdict instability
+measured in #13, for almost no money. Deciding a configuration question
+on a single pairwise call would have been indefensible given what #13
+already established. Script: `scripts/cap_probe.py`.
+
+**The hypothesis was wrong.** Cap 8 leads on both grading modes:
+absolute 4.25 vs 3.75, blinded pairwise 12 wins vs 6 (2 ties) across
+5 calls × 4 dimensions. Cost: $3.63 vs $2.06 per pipeline run (+76%).
+Latency is effectively identical (1156s vs 1143s) — the tool calls are
+fast; wall-clock is dominated by long text generation.
+
+**Two observations that turn this from a number into an explanation:**
+
+1. **Total output is identical — 225,838 vs 224,207 characters, within
+   0.2% per skill — because both caps are bounded by `max_tokens`, not by
+   the tool budget.** Skills 02 and 03 report `final_stop_reason:
+   "max_tokens"` and `confidence: low` under *both* configurations. The
+   extra lookups therefore do not produce *more* output; they produce
+   better-grounded content inside the same fixed ceiling. This also
+   retroactively explains why the earlier 2-round run "looked fine" on
+   length alone — length was never the variable the cap controlled.
+2. **The largest gap is on SAP grounding, 4–1 to cap 8** — the exact
+   dimension the scope-item lookup tool exists to serve. A quality
+   difference showing up preferentially on the dimension with a
+   mechanistic reason to improve is much harder to dismiss as noise than
+   a diffuse improvement would be.
+
+**What this does NOT establish, stated plainly.** Generation is **n=1 per
+cap on one scenario**; the 5× repetition covers judge variance, not
+generation variance. One of the five calls flipped to cap 2 on all four
+dimensions — #13's instability, live. And this tests 2 vs 8 only:
+whether 8 beats 12 or 20 is untested, and cost scales steeply (20 rounds
+produced 123 tool calls on a single skill, #15). **This probe is
+sufficient to reject the cheap option — the decision it was run to make —
+and is not a claim that 8 is optimal.**
+
+**Decision: `_MAX_TOOL_ROUNDS` stays at 8 for the full rerun.** The
+difference across a full n=3 matrix is roughly $9 (~$15 at cap 2 vs ~$24
+at cap 8). Knowingly running a configuration the evidence says is worse,
+to save $9 on a run whose entire purpose is producing defensible numbers,
+would defeat the point of running it.
+
+**A note on why this entry exists at all.** The cheap answer was
+available and attractive, and taking it would have been invisible — no
+one would have known the question went unasked. The probe cost $5.68 and
+returned the opposite of the expected answer. That is the argument for
+running it, and it is the reason the value in `_MAX_TOOL_ROUNDS` is now
+defensible under questioning rather than merely documented.
+
+
+---
+
+## 17. The full rerun didn't happen: a daily token quota, and two retry
+    bugs found trying to survive it
+
+**What was attempted.** #16 concluded with a decision to run the full n=3
+matrix at cap 8 (~$24, ~2 hours) to replace the numbers retracted in #15.
+It was attempted twice. Neither completed, and the reason is worth
+recording precisely, because the first diagnosis was wrong.
+
+**Attempt 1 — died at iteration 2 of 6, ~$4 spent.** `RuntimeError: Max
+retries exceeded`, triggered by 429s on Skill 03 (the largest request in
+the pipeline: ~530k input tokens at cap 8). **Root cause: rate limits and
+transient API errors shared one backoff schedule.** `call_claude_with_retry`
+reused `2 ** (attempt + 1)` with `max_retries=3`, so a throttled call waited
+2s, 4s, 8s -- **14 seconds total** -- and gave up. Nothing that resets on a
+window measured in minutes could ever be outlasted by that.
+
+Fixed: rate limits got a dedicated schedule (`_RATE_LIMIT_BACKOFF_S =
+[30, 60, 90, 120, 150]`, 450s total) that deliberately does **not** consume
+the general retry budget -- being throttled is not evidence a request is
+bad, so it should not spend the allowance reserved for genuinely failing
+calls, and a throttled request is rejected before tokens are billed, so
+waiting costs time but not money. The `for attempt in range(...)` loop
+became a `while` so rate-limit retries genuinely don't advance `attempt`.
+Verified with three mocked tests before relaunching.
+
+**Attempt 2 — died at iteration 1 of 6, and revealed the first diagnosis
+was incomplete.** The new backoff worked exactly as designed: nine
+rate-limit events, full 450s schedule consumed, orderly failure. But the
+error text was:
+
+> `429 - Too many tokens per day, please wait before trying again.`
+
+**A per-DAY quota, not per-minute throttling.** No in-run backoff can
+outlast a daily boundary. The 450s schedule was correct engineering aimed
+at the wrong constraint.
+
+**The actual numbers, confirmed against the account rather than assumed.**
+Queried via `aws service-quotas list-service-quotas --service-code bedrock`
+(with a real gotcha: `--no-paginate` silently returns only the FIRST page --
+6 quotas instead of 1,179 -- which briefly produced a confidently wrong
+"no matching quotas found" reading):
+
+| Model | Per-day tokens | Per-minute tokens | Day adjustable? |
+|---|---|---|---|
+| Sonnet 4.6 (system under test) | **10,800,000** | 6,000,000 | **No** |
+| Haiku 4.5 (judge) | 27,000,000 | 5,000,000 | **No** |
+
+Sonnet's per-day quota is `L-B29C9321` (5.4M base, explicitly "doubled for
+cross-region calls" → `L-248E47B7` at 10.8M, which is what the `us.`
+inference profile draws on). **It is not adjustable**, so there is no
+request-an-increase path -- only the per-minute limits can be raised, and
+per-minute was never the binding constraint.
+
+**Measured consumption on the day of the attempts: 9,162,662 Sonnet tokens
+across 16 pipeline runs (84.8% of the 10.8M cap) from `state/*-metrics.json`
+alone**, before baselines. The probe (#16), the Step 4 verification runs
+(#15), and attempt 1 had collectively spent the day's allowance before the
+real run started. The 429 was arithmetic, not bad luck.
+
+**Second fix: fail fast on a daily quota.** The new backoff made things
+*worse* in this specific case -- it spent 7.5 minutes retrying an error the
+very first response had already made certain. `_is_daily_quota_error()` now
+inspects the 429 body (per-day and per-minute are indistinguishable by
+exception *type*; both are `anthropic.RateLimitError`) and raises
+immediately with the quota-check command in the message. **Deliberately
+fails safe:** anything not positively marked as per-day is treated as
+per-minute and retried, because misreading transient throttling as fatal
+would abort a run that would have recovered -- strictly worse than spending
+some backoff before failing. Tested against the literal observed message
+text, a per-minute message, and a deliberately ambiguous one.
+
+**Third fix, unrelated to quotas but exposed by the same failure:
+checkpointing.** Attempt 1 lost every dollar it had spent because results
+only reached disk in `write_results()` at the very end. A ~2-hour, ~$25 job
+with no partial-progress protection is a design flaw independent of what
+killed it. `eval.py` now writes `evals/results.checkpoint.json` after each
+completed iteration -- a **separate path** from `RESULTS_JSON`, so a partial
+run can never overwrite or be mistaken for a complete committed dataset
+(the exact hazard already recorded in #15), with the write wrapped so
+checkpointing can never kill the run it exists to protect.
+
+**Feasibility of the rerun, now that the real ceiling is known.** One cap-8
+pipeline run measures 995,230 tokens. Six runs plus baselines ≈ **6.5M
+tokens, about 60% of a fresh day's Sonnet allowance** -- comfortably
+feasible, with ~40% headroom for a retry, but only on a day not already
+spent. Judge calls draw on Haiku's separate 27M budget and are not a
+constraint.
+
+**Status: the retraction in #15 stands unresolved.** The pipeline numbers
+remain retracted and uncitable. What changed here is that the blocker is now
+*understood and quantified* rather than mysterious: it is a hard,
+non-adjustable daily ceiling, the workload's footprint against it is
+measured, and the harness will now fail in seconds rather than minutes when
+it hits one -- with partial work preserved rather than discarded.
+
+**The honest framing for anyone reading this later:** two attempts, ~$4
+spent, no numbers produced. The engineering that came out of it is real --
+correct rate-limit backoff, daily-quota fast-fail, checkpointing, and a
+measured understanding of the account's actual ceiling -- but it is not the
+deliverable that was asked for, and calling it one would be dressing up a
+miss.
+
+
+---
+
+## 18. CORRECTION: the daily quota is a rolling 24-hour window, not a
+    calendar-day reset — and the third rerun attempt
+
+**This entry corrects a factual claim made in #17.** That entry left the
+reset boundary open ("the practical test is to retry and see"). It was then
+asserted — by me, in conversation, and repeated back as confirmed — that the
+quota resets at 00:00 UTC. **That is wrong. It is a rolling 24-hour
+window.** The correction matters because scheduling any future run depends
+on it.
+
+**How the wrong conclusion was reached, since the reasoning error is the
+instructive part.** After the #17 failure at 19:30 UTC on 2026-08-26,
+requests succeeded again at 02:17 UTC on 08-27 — 6.7 hours later. The
+reasoning was: 6.7h is far short of 24h, so a rolling window cannot explain
+the recovery; UTC midnight had passed in the interval; therefore it is
+calendar-based. Both premises were true and the conclusion did not follow.
+A rolling window explains the recovery perfectly well: by 02:17, the runs
+from 01:44–02:14 the previous day had aged out, freeing just enough headroom
+for about two more runs. Recovery was partial, and partial recovery is
+exactly what a rolling window looks like — it was read as a full reset
+because a full reset was the expected answer.
+
+**The data, which is unambiguous.** Attempt 3 (02:17 UTC, 08-27) failed
+after 2 of 6 pipelines with the same `429 Too many tokens per day`:
+
+| Hypothesis | Tokens in window | Consistent with failure? |
+|---|---|---|
+| Calendar day (08-27 only) | 2,038,209 (18.9% of cap) | **No** — nowhere near the limit |
+| **Rolling 24h** | **8,065,971 (74.7% of cap)** | **Yes** — plus baselines, judge calls, and the two crashed runs that consumed tokens without writing metrics files |
+
+Under the calendar hypothesis the failure is inexplicable. Under the rolling
+hypothesis it is arithmetic. Rolling is correct.
+
+**Attempt 3's outcome, and the one thing that went right.** 2 of 6
+iterations completed before the quota was hit. Zero per-minute rate-limit
+events; the daily-quota fast-fail from #17 worked exactly as designed,
+raising in seconds instead of burning 450s of useless backoff.
+
+**Checkpointing (#17) paid for itself on its first real failure.** Attempt 1
+lost everything it had spent. Attempt 3 lost nothing: four scored results
+and two blinded pairwise comparisons for `scenario-a-agribusiness` runs 0
+and 1 were preserved in `evals/results.checkpoint.json`, on a separate path,
+with the committed `results.json` untouched. That is the entire argument for
+the fix, demonstrated rather than asserted.
+
+**No conclusions are drawn from the partial data, deliberately.** Two runs
+on one scenario is a fragment, not a result. The scores are recorded in the
+checkpoint for provenance; they are not analysed, averaged, or compared
+here, and they do not lift the #15 retraction. Reporting a fragment as a
+finding is precisely the failure mode this file exists to prevent.
+
+**A structural finding worth more than the run itself.** At roughly 1.0M
+tokens per pipeline run against a 10.8M rolling cap, **this account
+supports about ten pipeline runs in any 24-hour period, total.** A single
+n=3 evaluation matrix consumes ~60% of that ceiling. This is not a
+provisioning accident — it follows from the pipeline's own design, where
+Skills 02/03 re-send an accumulating conversation on every tool-use round,
+making input tokens ~94% of consumption (8.66M of 9.16M measured on
+08-26). **The orchestrated pipeline is expensive enough that evaluating it
+is itself rate-limited**, which is a legitimate operational data point for
+the same cost question #11 and #15 were asking, and it holds regardless of
+what the eventual quality numbers say.
+
+**When a full run actually fits, computed from the rolling window rather
+than guessed:** a 6.5M-token run needs prior-24h consumption at or below
+4.29M. Given the measured history, that first occurs around **18:30 UTC on
+2026-08-27**, and the window is fully clear by **04:30 UTC on 08-28**.
+
+**Status unchanged: the #15 retraction stands.** Three attempts, no
+citable numbers. What is now solid is the diagnosis — a hard,
+non-adjustable, rolling-window ceiling, with the workload's footprint
+against it measured, the failure mode fast and cheap instead of slow and
+total, and partial work preserved. That is real progress on the blocker and
+it is still not the deliverable that was requested.

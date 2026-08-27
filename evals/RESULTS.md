@@ -303,3 +303,153 @@ committed results without an explicit flag. **Not fixed here** (out of this
 step's scope); named so the next person is not surprised by it.
 
 See `DECISIONS.md` #15 for the full account.
+
+---
+
+## 2026-08-26 — Cap-calibration probe: does the tool-round budget buy quality?
+
+`_MAX_TOOL_ROUNDS` was set to 8 as an explicitly un-optimized middle ground
+(#15). Before spending on a full rerun, this probe measured whether the
+budget actually pays for itself. Method: generate the same scenario twice
+(cap 2 vs cap 8), judge both absolutely, then run the blinded pairwise
+comparison **5× on the identical pair** — generation is the expensive part
+and happens once per cap, while judge calls are cheap, so repeating the
+comparison directly addresses the ~1-in-5 verdict instability measured in
+#13. Reproducible via `scripts/cap_probe.py`; raw data in
+`evals/cap_probe.json`.
+
+| | cap 2 | cap 8 |
+|---|---|---|
+| Cost (1 pipeline run) | **$2.06** | **$3.63** (+76%) |
+| Tool calls | 24 | 54 |
+| Latency | 1143s | 1156s (no real difference) |
+| Total output | 225,838 chars | 224,207 chars |
+| Absolute score (mean of 4) | 3.75 | **4.25** |
+| Blinded pairwise (5 calls × 4 dims) | 6 wins | **12 wins** (2 ties) |
+
+**The probe did not support the cheaper option, which is the opposite of
+the hypothesis it was run to test.** Cap 8 leads on both grading modes.
+
+**Two findings that make the result interpretable rather than just a
+number:**
+
+1. **Output volume is identical (within 0.2% per skill) because both caps
+   are limited by `max_tokens`, not by the tool budget.** Skills 02 and 03
+   hit `16384/16384` and report `confidence: low` under *both* caps. So the
+   extra lookups do not buy *more* output — they buy better-grounded
+   content inside the same fixed budget.
+2. **The clearest gap is on SAP grounding (cap 8 wins 4–1)** — precisely the
+   dimension the scope-item lookup tool exists to support. That mechanistic
+   coherence is why this reads as signal rather than noise: the dimension
+   that improved is the one more lookups should improve.
+
+**Honest limits.** Generation is **n=1 per cap** on **one scenario** — the
+5× repetition covers judge noise, not generation variance. One of the five
+pairwise calls flipped to cap 2 on all four dimensions, a live reminder of
+#13's instability. And this compares 2 vs 8 only; whether 8 is better than
+12 or 20 is untested, and cost grows steeply (20 rounds → 123 calls on a
+single skill, #15). **The probe is sufficient to reject the cheap option,
+which is what it was run to decide — it is not a claim that 8 is optimal.**
+
+**Decision: keep `_MAX_TOOL_ROUNDS = 8` for the full rerun.** The delta
+across a full n=3 matrix is roughly $9 (~$15 vs ~$24), which is not worth
+knowingly running a configuration the evidence says is worse.
+
+---
+
+## 2026-08-26 — Full rerun ATTEMPTED and BLOCKED: daily token quota
+
+**The retraction above stands unresolved. No new numbers were produced.**
+The full n=3 rerun decided on in #16 was attempted twice and blocked both
+times by an account-level constraint, not a code defect.
+
+**The blocker:** `429 - Too many tokens per day`. Sonnet 4.6's per-day
+token quota on this account is **10,800,000** and is **not adjustable**
+(Service Quotas `L-B29C9321`, doubled to `L-248E47B7` for the `us.`
+cross-region profile). Only per-minute limits can be raised, and
+per-minute was never the binding constraint.
+
+**Measured, not guessed:** `state/*-metrics.json` shows **9,162,662 Sonnet
+tokens consumed across 16 pipeline runs that day — 84.8% of the cap** —
+before baselines. The cap-calibration probe, the Step 4 verification runs,
+and the first rerun attempt had already spent the day's budget. The 429 was
+arithmetic.
+
+**Feasibility, now quantified:** one cap-8 pipeline run = 995,230 tokens; a
+full n=3 matrix plus baselines ≈ **6.5M tokens, ~60% of a fresh day's
+allowance**. Feasible with ~40% headroom for a retry — but only on a day
+not already spent on other work. Judge calls draw on Haiku's separate 27M
+budget and are not a constraint.
+
+**Three fixes came out of the two failed attempts** (all tested, none
+producing eval numbers):
+
+1. **Rate-limit backoff separated from generic API-error backoff.** They
+   had shared one schedule, so a throttled call waited 2s/4s/8s — 14
+   seconds total — and gave up. Rate limits now get `[30, 60, 90, 120, 150]`
+   (450s) and deliberately do not consume the general retry budget.
+2. **Fast-fail on daily quota.** Fix #1 made this case *worse*: it spent 7.5
+   minutes retrying an error the first response had already made certain.
+   The harness now inspects the 429 body and raises in seconds, printing the
+   quota-check command. Fails safe — anything not positively identified as
+   per-day is still retried as per-minute.
+3. **Checkpointing.** Attempt 1 lost all spend because results only reached
+   disk at the very end. `evals/results.checkpoint.json` is now written
+   after each completed iteration, on a **separate path** from
+   `results.json` so a partial run can never overwrite a committed dataset.
+
+**To confirm quota headroom before retrying:**
+
+```
+aws service-quotas list-service-quotas --service-code bedrock --region us-east-1
+```
+
+Do **not** pass `--no-paginate` — it silently returns only the first page
+(6 quotas instead of 1,179), which briefly produced a confidently wrong
+"no matching quotas" reading during this investigation.
+
+---
+
+## 2026-08-27 — CORRECTION to the note above, and attempt 3
+
+**The quota is a ROLLING 24-HOUR WINDOW, not a calendar-day reset.** The
+note above left this open; it was then asserted to be UTC-midnight-based.
+That was wrong. Correcting it here rather than editing the earlier note, so
+the mistake stays visible.
+
+**Evidence.** Attempt 3 (02:17 UTC, 08-27) failed after 2 of 6 pipelines
+with the same `429 Too many tokens per day`:
+
+| Hypothesis | Tokens in window | Explains the failure? |
+|---|---|---|
+| Calendar day (08-27 only) | 2,038,209 — 18.9% of cap | **No** |
+| **Rolling 24h** | **8,065,971 — 74.7% of cap** | **Yes** |
+
+Requests had briefly succeeded 6.7 hours after the previous failure, which
+looked like a reset. It was partial recovery: earlier runs aging out of the
+rolling window freed just enough headroom for about two runs.
+
+**Attempt 3 outcome:** 2 of 6 iterations completed. Zero per-minute
+throttling. The daily-quota fast-fail worked — failed in seconds, not 450s.
+
+**Checkpointing worked on its first real failure.** Four scored results and
+two blinded pairwise comparisons (`scenario-a-agribusiness`, runs 0 and 1)
+preserved in `evals/results.checkpoint.json`. Committed `results.json`
+untouched. Attempt 1 had lost everything; attempt 3 lost nothing.
+
+**No conclusions are drawn from that fragment.** Two runs on one scenario
+is not a result. The scores are kept for provenance only — not analysed,
+not compared, and they do **not** lift the retraction above.
+
+**Structural finding, independent of any eventual quality number:** at
+~1.0M tokens per pipeline run against a 10.8M rolling cap, this account
+supports **about ten pipeline runs per 24 hours, total** — and one n=3
+matrix needs ~60% of that. Input tokens are ~94% of consumption (8.66M of
+9.16M measured on 08-26) because Skills 02/03 re-send an accumulating
+conversation every tool round. **The pipeline is costly enough that
+evaluating it is itself rate-limited.**
+
+**When a full run fits** (needs prior-24h use ≤ 4.29M): first viable around
+**18:30 UTC 08-27**; window fully clear **04:30 UTC 08-28**.
+
+**Status: the retraction stands. Three attempts, no citable numbers.**

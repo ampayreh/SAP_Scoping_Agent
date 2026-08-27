@@ -74,6 +74,39 @@ MODEL_ID = os.environ.get("MODEL_ID", _DEFAULT_MODEL)
 # treat it as a reasonable default, not a tuned one.
 _MAX_TOOL_ROUNDS = 8
 
+# Backoff schedule (seconds) for provider rate limiting, kept separate from
+# the generic API-error backoff. Sums to 7.5 minutes across 5 attempts,
+# which is sized to outlast a throughput-quota window rather than to be a
+# polite pause: the previous behaviour reused the generic 2/4/8s schedule
+# and gave up after 14 seconds total, killing a full eval run mid-flight
+# (DECISIONS.md #17). Throttled requests are rejected before tokens are
+# billed, so a long wait costs time but not money -- the asymmetry strongly
+# favours waiting over failing an expensive multi-hour run.
+_RATE_LIMIT_BACKOFF_S = [30, 60, 90, 120, 150]
+
+# Substrings identifying a per-DAY quota inside a 429 body, as opposed to
+# per-minute throttling. Bedrock's observed wording is
+# "Too many tokens per day, please wait before trying again."
+# Matched case-insensitively against the exception text.
+_DAILY_QUOTA_MARKERS = ("per day", "per-day", "daily quota", "daily limit")
+
+
+def _is_daily_quota_error(exc: Exception) -> bool:
+    """True if a 429 is a per-day quota exhaustion rather than per-minute
+    throttling. The two are indistinguishable by exception TYPE -- both are
+    anthropic.RateLimitError -- so the message body is the only available
+    signal.
+
+    Deliberately fails SAFE: anything not clearly marked as per-day is
+    treated as per-minute and gets the normal retry path. Misreading a
+    transient per-minute limit as a fatal daily one would abort a long run
+    that would have recovered on its own, which is strictly worse than the
+    reverse (spending some backoff before failing). So the check requires
+    positive evidence of a daily limit and never guesses.
+    """
+    text = str(exc).lower()
+    return any(marker in text for marker in _DAILY_QUOTA_MARKERS)
+
 SKILLS_DIR = Path(__file__).parent / "skills"
 STATE_DIR = Path(__file__).parent / "state"
 
@@ -346,7 +379,12 @@ def call_claude_with_retry(
 
     messages = [{"role": "user", "content": user_message}]
 
-    for attempt in range(max_retries):
+    # `attempt` counts genuine failures only. Rate-limit retries are tracked
+    # separately in rate_limit_attempts and deliberately do NOT advance
+    # `attempt` -- see the RateLimitError handler below for why.
+    attempt = 0
+    rate_limit_attempts = 0
+    while attempt < max_retries:
         try:
             kwargs: dict[str, Any] = {
                 "model": MODEL_ID,
@@ -510,14 +548,75 @@ def call_claude_with_retry(
 
             return text, metrics
 
-        except anthropic.RateLimitError:
-            wait = 2 ** (attempt + 1)
-            print(f"    Rate limited, waiting {wait}s...")
-            time.sleep(wait)
-        except anthropic.APIError as e:
-            if attempt == max_retries - 1:
+        except anthropic.RateLimitError as e:
+            # FIRST: is this a per-DAY quota rather than per-minute throttling?
+            # These arrive as the same 429/RateLimitError but are completely
+            # different problems. A per-minute limit clears in about a minute,
+            # so waiting is exactly right. A per-day quota clears at the next
+            # daily reset -- possibly many hours away -- so retrying is
+            # guaranteed to fail, and the only effect of the backoff schedule
+            # below is to waste 7.5 minutes before reporting a failure the
+            # first response already made certain.
+            #
+            # This is not hypothetical: it happened. A full eval run burned
+            # the entire rate-limit budget against
+            # "Too many tokens per day, please wait before trying again."
+            # before dying (DECISIONS.md #17). Verified against this account:
+            # Sonnet 4.6's per-day token quota is NOT adjustable in Service
+            # Quotas (code L-B29C9321, doubled to L-248E47B7 for cross-region
+            # profiles), so there is no request-an-increase escape either --
+            # the run simply cannot proceed until the quota resets.
+            if _is_daily_quota_error(e):
+                print(
+                    "\n    DAILY TOKEN QUOTA EXHAUSTED -- failing immediately rather than "
+                    f"retrying.\n    Provider said: {str(e)[:200]}\n"
+                    "    Retrying cannot help: a per-day quota resets on a daily boundary, "
+                    "not in seconds.\n"
+                    "    Check headroom with:\n"
+                    "      aws service-quotas list-service-quotas --service-code bedrock "
+                    "--region us-east-1\n"
+                    "    (do NOT pass --no-paginate: it silently returns only the first page)",
+                    file=sys.stderr,
+                )
                 raise
-            wait = 2 ** (attempt + 1)
+
+            # Otherwise it is per-minute throttling, which waiting DOES fix.
+            # Rate limits need a fundamentally different backoff than
+            # transient API errors, and conflating the two was a real bug:
+            # the old schedule reused 2**(attempt+1) with max_retries=3, so
+            # a rate-limited call waited 2s, 4s, 8s -- 14 SECONDS TOTAL --
+            # and then gave up. Provider throughput quotas reset on windows
+            # measured in minutes, so that schedule could never outlast one.
+            # Killed a full 6-iteration eval run 20 minutes and ~$4 in
+            # (2026-08-26), on the largest request in the pipeline
+            # (Skill 03 at cap 8 sends ~530k input tokens). See DECISIONS.md #17.
+            #
+            # Rate limits get their own budget that does NOT consume the
+            # general retry attempts: being throttled is not evidence the
+            # request is bad, so it should not spend the allowance reserved
+            # for genuinely failing calls. A throttled request is also
+            # rejected before tokens are billed, so waiting is cheap.
+            if rate_limit_attempts >= len(_RATE_LIMIT_BACKOFF_S):
+                print(
+                    f"    Rate limited and out of rate-limit retries "
+                    f"({len(_RATE_LIMIT_BACKOFF_S)} attempts, "
+                    f"{sum(_RATE_LIMIT_BACKOFF_S)}s of backoff). Giving up.",
+                    file=sys.stderr,
+                )
+                raise
+            wait = _RATE_LIMIT_BACKOFF_S[rate_limit_attempts]
+            rate_limit_attempts += 1
+            print(
+                f"    Rate limited ({rate_limit_attempts}/{len(_RATE_LIMIT_BACKOFF_S)}), "
+                f"waiting {wait}s..."
+            )
+            time.sleep(wait)
+            continue  # deliberately does not consume an `attempt`
+        except anthropic.APIError as e:
+            attempt += 1
+            if attempt >= max_retries:
+                raise
+            wait = 2 ** attempt
             print(f"    API error ({e}), retrying in {wait}s...")
             time.sleep(wait)
 
