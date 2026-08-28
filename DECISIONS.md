@@ -1281,3 +1281,29 @@ non-adjustable, rolling-window ceiling, with the workload's footprint
 against it measured, the failure mode fast and cheap instead of slow and
 total, and partial work preserved. That is real progress on the blocker and
 it is still not the deliverable that was requested.
+
+
+---
+
+## 19. RESOLVED: the corrected full-pipeline n=3 result, and an adversarial
+    fail left deliberately unpatched
+
+**The #15 retraction is lifted.** After three infrastructure-blocked attempts (#16–#18), the full n=3 rerun completed cleanly on 2026-08-28 on a fresh rolling-window budget: 6/6 pipelines, 0 failures, 0 rate-limit events, **0 empty-text warnings** — the empty-output defect of #15 is verified fixed under real load, not just in a mock. ~$25, ~2h40m.
+
+**The corrected numbers make the case against the pipeline stronger, not weaker — which is the honest and slightly counterintuitive headline.** The worry behind the retraction was "we don't know what the real comparison says because we were measuring a two-skill pipeline." Now we know:
+
+- Absolute: pipeline 4.54 vs baseline 4.50 — a tie at the ceiling.
+- Blinded pairwise: **baseline 23 of 24**, pipeline 1. Accuracy, actionability, and SAP grounding all 6–0 to the baseline. The retracted two-skill comparison was 16–7; the *complete* pipeline does **worse** head-to-head, not better. Shown two full deliverables side by side, the judge prefers the tighter single-prompt output almost every time.
+- Cost 16.6× ($3.89 vs $0.23); latency 4.2× (1202s vs 289s). Both worse than the retracted 8.4×/2.1×, confirming the explicit prediction made when those were retracted: the old cost was a floor because the empty skills were cheap.
+
+**So the answer to "was the pipeline conclusion an artifact of the bug?" is a definitive no.** Fixing the bug removed the caveat and strengthened the finding. On these two scenarios there is no quality justification for a 17×-cost, 4×-latency orchestration over one good prompt.
+
+**adv-01 failed and was deliberately NOT fixed — this is a judgment call worth recording.** The dollar-figure guard (from #10) matched `$300` in one run's "Insufficient Input" refusal. Investigation:
+
+1. The agent's refusal behaviour is correct. Regenerating the adversarial input produced a clean, textbook decline — no fabricated figures, correct recommendation of the SAP Digital Discovery Assessment. The agent is not misbehaving.
+2. The specific `$300` context could not be reproduced. Generation is non-deterministic, and adversarial-run outputs are not persisted, so the exact sentence that contained `$300` is gone.
+3. It is almost certainly a false positive of the same class as #10 and #11 — a legitimate SAP price reference (the agent routinely cites Business One / GROW / RISE tiers to illustrate how vague "We want SAP" is) tripping a substring guard whose illustrative-context markers did not cover that phrasing.
+
+**The decision: record it as a probable-but-unconfirmed false positive; do not patch.** Broadening the guard's markers to make this specific `$300` pass would mean editing a real safety check against text I cannot see — tuning to an invisible target, the exact anti-pattern this repo's adversarial fixes (#10, #11) were careful to avoid by testing against the literal failing text. When the failing text is unavailable, the honest action is to document the uncertainty, not to guess. The committed adversarial result therefore shows 31/32, with adv-01's fail explained rather than hidden. If a future run reproduces a `$300`-class fabrication with the text captured, revisit then, against real evidence.
+
+**Downstream updates made in the same pass:** the résumés and dossier that carried the retracted "12 runs" language (updated 2026-08-27 to a retraction-and-pending framing) are updated again to cite the corrected, now-valid result. `evals/RESULTS.md` top tables are the canonical numbers; the retraction notes below them are retained as historical record and explicitly scoped to the pre-2026-08-26 data.

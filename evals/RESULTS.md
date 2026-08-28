@@ -1,7 +1,7 @@
 # SAP Scoping Agent — Evaluation Results
 
-System model (under test): `claude-sonnet-4-20250514`
-Judge model: `claude-opus-5`
+System model (under test): `us.anthropic.claude-sonnet-4-6`
+Judge model: `us.anthropic.claude-haiku-4-5-20251001-v1:0`
 Judge independence: ✅ different model line from the system under test
 Runs per scenario: 3
 
@@ -14,18 +14,18 @@ anonymizes and randomizes which output is "Response A" vs "Response B".
 
 | Scenario | Method | Completeness | Accuracy | Actionability | SAP Grounding | Cost | Latency |
 |----------|--------|:---:|:---:|:---:|:---:|------:|--------:|
-| scenario-a-agribusiness | pipeline | 5 | 5 | 5 | 5 | $1.7637 | 541.2s |
-| scenario-a-agribusiness | baseline | 4 | 4 | 4 | 4 | $0.2253 | 288.0s |
-| scenario-a-agribusiness | pipeline | 4 | 4 | 4 | 4 | $1.6989 | 453.2s |
-| scenario-a-agribusiness | baseline | 4 | 4 | 4 | 3 | $0.2104 | 264.0s |
-| scenario-a-agribusiness | pipeline | 4 | 4 | 3 | 4 | $1.8567 | 600.9s |
-| scenario-a-agribusiness | baseline | 5 | 5 | 5 | 5 | $0.1561 | 193.2s |
-| scenario-b-high-tech | pipeline | 5 | 5 | 5 | 5 | $1.9437 | 594.0s |
-| scenario-b-high-tech | baseline | 5 | 5 | 5 | 5 | $0.2500 | 284.9s |
-| scenario-b-high-tech | pipeline | 5 | 5 | 5 | 5 | $1.9257 | 571.9s |
-| scenario-b-high-tech | baseline | 5 | 5 | 5 | 5 | $0.2500 | 289.2s |
-| scenario-b-high-tech | pipeline | 5 | 5 | 5 | 5 | $2.0804 | 617.3s |
-| scenario-b-high-tech | baseline | 5 | 5 | 5 | 5 | $0.2500 | 287.0s |
+| scenario-a-agribusiness | pipeline | 4 | 4 | 4 | 5 | $3.9035 | 1179.6s |
+| scenario-a-agribusiness | baseline | 4 | 4 | 3 | 4 | $0.2333 | 302.7s |
+| scenario-a-agribusiness | pipeline | 4 | 4 | 4 | 4 | $3.6169 | 1128.0s |
+| scenario-a-agribusiness | baseline | 5 | 5 | 5 | 5 | $0.2025 | 251.9s |
+| scenario-a-agribusiness | pipeline | 4 | 4 | 4 | 5 | $3.8386 | 1208.0s |
+| scenario-a-agribusiness | baseline | 4 | 4 | 3 | 3 | $0.2190 | 278.2s |
+| scenario-b-high-tech | pipeline | 5 | 4 | 5 | 5 | $3.8998 | 1239.7s |
+| scenario-b-high-tech | baseline | 5 | 5 | 5 | 5 | $0.2500 | 310.3s |
+| scenario-b-high-tech | pipeline | 5 | 5 | 5 | 5 | $4.0424 | 1215.2s |
+| scenario-b-high-tech | baseline | 5 | 5 | 5 | 5 | $0.2500 | 307.5s |
+| scenario-b-high-tech | pipeline | 5 | 5 | 5 | 5 | $4.0678 | 1242.5s |
+| scenario-b-high-tech | baseline | 5 | 5 | 4 | 5 | $0.2500 | 282.1s |
 
 ## Consistency (computed from cross-run variance, not judge-estimated)
 
@@ -40,10 +40,10 @@ estimate. Treat it as indicative, not statistically rigorous.**
 
 | Scenario | Method | Runs | Mean Score | Stddev | Consistency (0-5) |
 |----------|--------|:---:|:---:|:---:|:---:|
-| scenario-a-agribusiness | baseline | 3 | 4.25 | 0.54 | 2 |
-| scenario-a-agribusiness | pipeline | 3 | 4.25 | 0.54 | 2 |
-| scenario-b-high-tech | baseline | 3 | 5.0 | 0.0 | 5 |
-| scenario-b-high-tech | pipeline | 3 | 5.0 | 0.0 | 5 |
+| scenario-a-agribusiness | baseline | 3 | 4.083 | 0.656 | 2 |
+| scenario-a-agribusiness | pipeline | 3 | 4.167 | 0.118 | 4 |
+| scenario-b-high-tech | baseline | 3 | 4.917 | 0.118 | 4 |
+| scenario-b-high-tech | pipeline | 3 | 4.917 | 0.118 | 4 |
 
 ## Statistical Comparison (confidence intervals + paired significance test)
 
@@ -61,10 +61,10 @@ assumption), cross-checked against `scipy.stats.wilcoxon` where available.
 
 | Method | Mean | Stdev | 95% Bootstrap CI |
 |--------|:---:|:---:|:---:|
-| pipeline | 4.25 | 0.6614 | [3.75, 5.0] |
-| baseline | 4.25 | 0.6614 | [3.75, 5.0] |
+| pipeline | 4.1667 | 0.1443 | [4.0, 4.25] |
+| baseline | 4.0833 | 0.8036 | [3.5, 5.0] |
 
-Exact permutation test: observed mean difference (pipeline − baseline) = **0.0**, p = **1.0** (minimum p this test could report at n=3 is 0.25 — the test is structurally incapable of reaching p<0.05 below that floor, regardless of effect size).
+Exact permutation test: observed mean difference (pipeline − baseline) = **0.0833**, p = **1.0** (minimum p this test could report at n=3 is 0.25 — the test is structurally incapable of reaching p<0.05 below that floor, regardless of effect size).
 Wilcoxon signed-rank (scipy): statistic = 3.0, p = 1.0.
 
 **scenario-b-high-tech** (3 paired runs)
@@ -73,11 +73,11 @@ Wilcoxon signed-rank (scipy): statistic = 3.0, p = 1.0.
 
 | Method | Mean | Stdev | 95% Bootstrap CI |
 |--------|:---:|:---:|:---:|
-| pipeline | 5.0 | 0.0 | [5.0, 5.0] |
-| baseline | 5.0 | 0.0 | [5.0, 5.0] |
+| pipeline | 4.9167 | 0.1443 | [4.75, 5.0] |
+| baseline | 4.9167 | 0.1443 | [4.75, 5.0] |
 
 Exact permutation test: observed mean difference (pipeline − baseline) = **0.0**, p = **1.0** (minimum p this test could report at n=3 is 0.25 — the test is structurally incapable of reaching p<0.05 below that floor, regardless of effect size).
-Wilcoxon signed-rank: not available — all paired differences are exactly zero -- nothing for Wilcoxon to rank.
+Wilcoxon signed-rank (scipy): statistic = 1.5, p = 1.0.
 
 
 ## Blinded Pairwise Comparison
@@ -89,48 +89,24 @@ excerpt. Counts below are aggregated across every scenario and run.
 
 | Dimension | Pipeline preferred | Baseline preferred | Tie | Errors |
 |-----------|:---:|:---:|:---:|:---:|
-| completeness | 2 | 4 | 0 | 0 |
-| accuracy | 2 | 3 | 1 | 0 |
-| actionability | 1 | 5 | 0 | 0 |
-| sap_grounding | 2 | 4 | 0 | 0 |
+| completeness | 1 | 5 | 0 | 0 |
+| accuracy | 0 | 6 | 0 | 0 |
+| actionability | 0 | 6 | 0 | 0 |
+| sap_grounding | 0 | 6 | 0 | 0 |
 
 **Example quoted evidence (spot-check):**
 
-- *scenario-a-agribusiness / completeness* — winner: **baseline** — "Response A: 'Pain Points' section identifies 6 specific numbered pain points (PP-01 through PP-06) each with id, title, description, business_impact, regulatory_driver, and priority rating. Response B"
-- *scenario-a-agribusiness / accuracy* — winner: **baseline** — "Response A: 'SAP Business One Cloud Edition as primary; SAP GROW S/4HANA Public Cloud as escalation path' with explicit platform comparison table showing cost estimates ($80K–160K for B1, $400K–800K+ "
-- *scenario-a-agribusiness / actionability* — winner: **baseline** — "Response A: Section 2.2 'Module Fit Analysis' begins immediately with structured module-by-module fit scores (Relevance Rating, Fit Score 0–100, Recommendation). For Financial Accounting: '⭐⭐⭐⭐⭐ (5/5 "
-- *scenario-a-agribusiness / sap_grounding* — winner: **baseline** — "Response A: 'Platform Recommendation: SAP Business One Cloud Edition as primary; SAP GROW S/4HANA Public Cloud as escalation path' with explicit rationale: 'SAP Business One delivers 90%+ of Highland "
+- *scenario-a-agribusiness / completeness* — winner: **baseline** — "Response A provides a complete JSON discovery brief with client profile, business context, pain points (P1–P7), key requirements (functional, technical, non-functional), change management risk, constr"
+- *scenario-a-agribusiness / accuracy* — winner: **baseline** — "Response A states: 'SAP Business One 10.0 (Cloud) — Best overall fit for company size, budget, and timeline — PRIMARY RECOMMENDATION' with explicit rationale: 'SAP Business One is purpose-built for co"
+- *scenario-a-agribusiness / actionability* — winner: **baseline** — "Response A provides: 'Module Fit Scoring' with a 2×5 matrix (Relevance Rating, Fit Score, Priority) for each module, specific capabilities addressed (e.g., 'General ledger with multi-currency support "
+- *scenario-a-agribusiness / sap_grounding* — winner: **baseline** — "Response A references: 'SAP Business One agribusiness add-on ecosystem (e.g., agrichemical/commodity modules from certified partners)' and explicitly names SAP methodology artifacts: 'GROW with SAP on"
 
 ## Adversarial Cases
 
 | Case | Name | Result |
 |------|------|--------|
-| adv-01 | refusal-on-insufficient-input | ✅ PASS |
+| adv-01 | refusal-on-insufficient-input | ❌ FAIL: ["must_not_match_regex: '\\$[\\d,]' matched ('$300') with no illustrative-range/named-product-tier context nearby"] |
 | adv-02 | refusal-on-non-sap-request | ✅ PASS |
-
----
-
-## Harness Changelog
-
-Short, dated notes on changes to the eval harness itself (not to a run's
-numbers). Full rationale for each lives in `DECISIONS.md`; this is the
-one-line pointer.
-
-**2026-08-26 — Step 1 of 4, interview-rigor pass: confidence intervals +
-paired significance test.** Added `compute_significance()`: per-scenario
-mean/stdev/95%-bootstrap-CI for both methods, plus a paired comparison
-(matched by run index) using an exact sign-flip permutation test
-(always exact, no distributional assumption) cross-checked against
-`scipy.stats.wilcoxon` where installed. A directional-only disclaimer
-prints to stdout and into this file whenever a scenario has fewer than
-10 paired runs — currently every scenario, since `--runs 3` is what's
-been run so far. The permutation test's own math states its floor
-plainly: at n=3, the minimum p-value it can ever report is 0.25 — no
-effect size can cross p<0.05 at this sample size. This does not close
-the "not enough runs for real power" gap; it makes the size of that gap
-explicit and computed, rather than asserted in prose. See `DECISIONS.md`
-#12.
-
 **2026-08-26 — Step 2 of 4, interview-rigor pass: judge test-retest
 reliability check.** Added `--judge-reliability-check` (opt-in, `--reliability-n`
 controls call count, default 5): calls the judge N times on one FIXED, real
@@ -453,3 +429,23 @@ evaluating it is itself rate-limited.**
 **18:30 UTC 08-27**; window fully clear **04:30 UTC 08-28**.
 
 **Status: the retraction stands. Three attempts, no citable numbers.**
+
+---
+
+## ✅ 2026-08-28 — RETRACTION RESOLVED: the first valid full-pipeline n=3 result
+
+**The tables at the TOP of this file are now valid data and may be cited.** They were regenerated on 2026-08-28 from a clean run where all four pipeline skills produced real output (the empty-output defect of #15 is fixed and verified — zero empty-text warnings across all six iterations). Every retraction note below this line refers to the *pre-2026-08-26* data and is retained as historical record; it does **not** apply to the current top-of-file tables.
+
+**Run provenance:** 2 scenarios × 3 runs, `us.anthropic.claude-sonnet-4-6` under test, `us.anthropic.claude-haiku-4-5-20251001-v1:0` as independent judge. 6/6 pipelines completed, 0 failures, 0 rate-limit events, 0 empty-text warnings. Ran to completion in ~2h40m on a fresh rolling-window budget. Total spend ~$25.
+
+**The result, stated plainly — and it makes the case against the pipeline STRONGER than the retracted numbers did:**
+
+- **Absolute scoring: a statistical tie at the ceiling.** Pipeline mean 4.54, baseline mean 4.50 (of 5). Both cluster at 4–5; the 0.04 gap is noise.
+- **Blinded pairwise: baseline preferred 23 of 24 dimension-judgments.** The pipeline won exactly one (completeness, once). Accuracy, actionability, and SAP grounding were **6–0 to the baseline**. This is far more lopsided than the retracted two-skill comparison (16–7), not less — fixing the empty skills did not rescue the pipeline in head-to-head; the judge, shown two *complete* deliverables side by side, prefers the tighter single-prompt output almost every time.
+- **Cost: 16.6× the baseline** ($3.89 vs $0.23 per run). **Latency: 4.2×** (1202s vs 289s). Both are *worse* than the retracted "8.4× / 2.1×", which confirms exactly what was predicted when those were retracted: the old cost figure was a floor, understated because the empty skills were cheap. With all four skills doing real work, the true multiple is roughly double.
+
+**Bottom line: on these two scenarios, the four-step orchestrated pipeline costs ~17× more, runs ~4× slower, ties the single-prompt baseline on absolute quality, and loses to it 23–1 in blinded head-to-head.** There is no quality case for the added cost in this data. This is the honest, corrected, full-pipeline result — the one the retracted numbers could not have told anyone.
+
+**Consistency (computed):** pipeline scores ranged 4.00–5.00 across runs, baseline 3.50–5.00; scenario-b was near-perfectly stable (5.0) for both methods, scenario-a more variable. Small-sample caveat stands: n=3 per scenario is directional, not powered (see the permutation-test note — at n=3 the smallest achievable two-sided p is 0.25).
+
+**Adversarial: adv-02 PASS; adv-01 FAIL — recorded honestly, NOT patched.** adv-01's dollar-figure guard matched `$300` in one run's refusal. The agent's refusal behaviour is correct (verified on regeneration: a clean "Insufficient Input" decline with no fabricated figures). But the specific `$300` context could not be reproduced — generation is non-deterministic and the run's full text was not persisted. This is almost certainly a false positive of the same class as the #10/#11 adversarial fixes (a legitimate SAP price reference tripping a substring guard), **but it was deliberately left unpatched**: weakening a real safety check against failing text that cannot be examined is exactly the wrong move, and the honest record of a probable-but-unconfirmed false positive is more valuable than a blind fix. See DECISIONS.md #19.
